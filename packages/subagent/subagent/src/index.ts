@@ -30,6 +30,9 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import type { ScienceResultExchange } from './science-results.ts'
+export type { SciencePeerConsent, ScienceResultMessage, ScienceResultReader, ScienceResultSource } from './science-results.ts'
 import type {} from '@deepseek-ai/dsh-attachment'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
@@ -188,6 +191,11 @@ interface BrowserPromptSource {
 
 /** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
 export class SubagentRuntime extends TypertRemoteService {
+  static Config = z.object({
+    scienceResultProject: z.string().min(1),
+    scienceResultMaxPairs: z.number().step(1).min(1).max(128).default(1),
+    scienceResultMaxPending: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(32),
+  })
   private providers = new Map<string, SubagentProvider>()
   private continuations: SubagentContinuationManager | undefined
   /**
@@ -197,14 +205,14 @@ export class SubagentRuntime extends TypertRemoteService {
    */
   private readonly emitLifecycle: LifecycleEmitter
 
-  constructor(ctx: Context) {
+  constructor(ctx: Context, config: { scienceResultProject?: string; scienceResultMaxPending?: number; scienceResultMaxPairs?: number } = {}) {
     super(ctx, 'subagents')
     this.emitLifecycle = createLifecycleEmitter(this.ctx, parent => scopeTarget(this, parent))
     ctx.inject(['agents'], (childCtx: Context) => {
       const manager = new SubagentContinuationManager(childCtx, {
         prepareContinuable: (name, request) => this.prepareContinuable(name, request),
         observeActivation: (provider, childId, parent) => this.observeActivation(provider, childId, parent),
-      })
+      }, config)
       this.continuations = manager
       childCtx.effect(() => () => {
         /* v8 ignore else -- one injected binding owns the slot until its fiber disposes. */
@@ -228,6 +236,11 @@ export class SubagentRuntime extends TypertRemoteService {
    */
   async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart> {
     return this.requireContinuations().startContinuable(spec)
+  }
+
+  /** Optional single-project result exchange; absent unless scienceResultProject is configured. */
+  get scienceResults(): ScienceResultExchange | undefined {
+    return this.requireContinuations().scienceResults
   }
 
   /**

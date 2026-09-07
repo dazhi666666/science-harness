@@ -1,0 +1,67 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "noEmit": true,
+    "rootDir": "../.."
+  },
+  "include": [
+    "plugin.ts",
+    "probe.spec.ts",
+    "mock-llm.ts"
+  ],
+  "references": [
+    {
+      "path": "../../vendor/cordis"
+    },
+    {
+      "path": "../../vendor/loader"
+    },
+    {
+      "path": "../../vendor/include"
+    },
+    {
+      "path": "../../packages/core/agent"
+    },
+    {
+      "path": "../../packages/core/agent-loop"
+    },
+    {
+      "path": "../../packages/core/session"
+    },
+    {
+      "path": "../../packages/core/tools"
+    },
+    {
+      "path": "../../packages/core/system-prompt"
+    },
+    {
+      "path": "../../packages/llm/llm"
+    },
+    {
+      "path": "../../packages/session/session-projection"
+    },
+    {
+      "path": "../../packages/session/session-persistence-jsonl"
+    },
+    {
+      "path": "../../packages/subagent/subagent"
+    },
+    {
+      "path": "../../packages/subagent/subagent-spawn-in-process"
+    },
+    {
+      "path": "../../packages/subagent/tool-subagent-control"
+    },
+    {
+      "path": "../../packages/storage/storage"
+    },
+    {
+      "path": "../../packages/storage/storage-json"
+    },
+    {
+      "path": "../../packages/storage/storage-domain"
+    }
+  ]
+}

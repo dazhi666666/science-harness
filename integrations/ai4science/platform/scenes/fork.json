@@ -1,0 +1,80 @@
+{
+  "project": "organization-fork",
+  "rootRole": "coordinator",
+  "maxParticipants": 7,
+  "maxDepth": 2,
+  "roles": {
+    "coordinator": {
+      "instructions": "Create up to three managers as work requires; finish when assigned work is accounted for.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_create",
+        "org_finish"
+      ],
+      "creates": {
+        "manager": 3
+      },
+      "maxInstances": 1
+    },
+    "manager": {
+      "instructions": "Create an allowed worker and authorize only the exact collaboration partner needed for the task.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_create",
+        "org_authorize",
+        "org_revoke"
+      ],
+      "creates": {
+        "worker": 1
+      },
+      "maxInstances": 3
+    },
+    "worker": {
+      "instructions": "Execute assigned operations; use event waits and authorized result references.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_send_result",
+        "execution_submit",
+        "execution_cancel"
+      ],
+      "creates": {},
+      "maxInstances": 3
+    }
+  },
+  "relations": [
+    {
+      "fromRole": "worker",
+      "toRole": "worker"
+    }
+  ]
+}

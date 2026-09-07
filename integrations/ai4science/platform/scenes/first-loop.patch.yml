@@ -1,0 +1,23 @@
+# Optional real-model example application on platform v0.1. Model/provider selection lives in the adjacent scene JSON.
+- id: agent-instructions
+  disabled: true
+- id: subagent
+  config:
+    scienceResultProject: first-loop-v01
+    scienceResultMaxPairs: 1
+    scienceResultMaxPending: 16
+- insert:
+    - id: ai4science-first-loop-v01
+      name: './first-loop.ts'
+      config:
+        deploymentFile: !!js process.env.AI4S_PLATFORM_CONFIG
+        organizationFile: !!js process.env.AI4S_ORGANIZATION_CONFIG
+        task: Coordinate the first-loop instrument study using the configured roles. Keep parents available, authorize exact peers, exchange real result references, choose a followup from observations, publish a sourced report and finish via org_finish.
+        budget: 96
+        instrumentProvider: instrument
+        roleProviders:
+          lead: [instrument]
+          research-a: [instrument]
+          research-b: [instrument]
+          midbrain-a: [instrument]
+          midbrain-b: [instrument]

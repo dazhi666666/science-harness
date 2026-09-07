@@ -30,7 +30,7 @@ import type {
   AgentOptions,
   CreateAgentOptions,
 } from '@deepseek-ai/dsh-agent'
-import { ReasoningEffortId, boundContextSummary, contentHasImage, createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
+import { ReasoningEffortId, boundContextSummary, contentHasImage, createUserMessage, freezeMessage, errorChain } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-llm'
 import { SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionId , SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
@@ -53,6 +53,7 @@ import type { ContinuableCreateRequest, ContinuableCreateSpec, SubagentResult, S
 import type { ActivationObserver, ActivationTerminal } from './lifecycle.ts'
 import { SubagentError } from './error.ts'
 import { isAdjacentAgentSendMessageTool } from './internal.ts'
+import { ScienceResultExchange } from './science-results.ts'
 
 /** Durable attribution for one model-authored message between adjacent Agents. */
 export interface AgentMessageSource {
@@ -132,7 +133,12 @@ export interface SubagentSendMessageOptions {
 }
 
 /** Inputs shared by model steering and the human Queue adapter. */
-type ChildDeliveryOptions =
+type ChildDeliveryOptions = {
+  /** Private opt-in cutoff; returns rollback only if synchronous enqueue itself fails. */
+  readonly beforeAccept?: (id: MessageId) => () => void
+  /** Internal science envelope includes the real inbox id so a model can author a correlated reply. */
+  readonly contentForId?: (id: MessageId) => ContentBlock[]
+} & (
   | {
     readonly delivery: 'steer'
     /**
@@ -142,7 +148,7 @@ type ChildDeliveryOptions =
     readonly source?: MessageSource
     readonly signal: AbortSignal
   }
-  | { readonly delivery: 'queue'; readonly source: MessageSource; readonly signal: AbortSignal }
+  | { readonly delivery: 'queue'; readonly source: MessageSource; readonly signal: AbortSignal })
 
 /**
  * The residency state of one continuable child, derived from Agent quiescence
@@ -383,6 +389,8 @@ class ChildLock {
  * this lifecycle.
  */
 export class SubagentContinuationManager {
+  /** Disabled by default; holds only consent and reference correlation, not Agent residency. */
+  readonly scienceResults: ScienceResultExchange | undefined
   /** Child session id → its live Activation. Process-local, never durable. */
   private activations = new Map<SessionId, Activation>()
   /** Materializations admitted before drain, tracked through publication or rollback. */
@@ -402,7 +410,30 @@ export class SubagentContinuationManager {
   constructor(
     private readonly ctx: Context,
     private readonly host: ContinuationHost,
+    config: { scienceResultProject?: string; scienceResultMaxPending?: number; scienceResultMaxPairs?: number } = {},
   ) {
+    this.scienceResults = config.scienceResultProject === undefined ? undefined : new ScienceResultExchange(
+      config.scienceResultProject, config.scienceResultMaxPending ?? 32, {
+        assertLive: (agent) => {
+          this.assertAdmitting(agent)
+          const activation = this.activations.get(agent.id)
+          if (ctx.agents.get(agent.id) !== agent
+            || (activation?.handle.agent === agent && disposalOf(activation) !== undefined)) {
+            throw new SubagentError('science authority requires the exact live, non-disposing Agent', 'SCIENCE_STALE_AGENT')
+          }
+        },
+        endpoint: async (parent, childId, signal) => {
+          using observation = await this.requireSessionQuery().observeSession(childId, { signal })
+          this.assertAdmitting(parent)
+          this.authorizeLineage(parent, childId, observation.header.parentSession)
+          if (foldSubagentDescriptor(observation.events.slice(observation.inheritedEventCount))?.mode !== 'continuable') {
+            throw new SubagentError('science endpoint must be an existing continuable child', 'NOT_RESUMABLE')
+          }
+        },
+        deliver: (parent, childId, content, source, signal, beforeAccept) =>
+          this.deliverToChild(parent, childId, [], { source, signal, beforeAccept, contentForId: content, delivery: 'steer' }),
+      }, config.scienceResultMaxPairs ?? 1,
+    )
     // Ordinary Cordis owner effects unwind in reverse registration order, which
     // cannot express the dynamic child graph. Register the private scope's
     // structural disposer FIRST and the drain SECOND, so reverse unwind invokes
@@ -412,6 +443,7 @@ export class SubagentContinuationManager {
     const scope = ctx.plugin(function activationOwner() {})
     this.ownerCtx = scope.ctx
     ctx.on('agent/disposed', ({ agent }) => {
+      this.scienceResults?.parentDisposed(agent)
       this.closingScopes.delete(agent)
     })
     ctx.effect(function* (this: SubagentContinuationManager) {
@@ -854,6 +886,7 @@ export class SubagentContinuationManager {
     // already past that cutoff remain tracked until their handle is installed
     // or rollback completes, producing a stable forest for the later snapshot.
     this.draining = true
+    this.scienceResults?.close()
     await Promise.all([...this.materializations].map(materialization => materialization.settled))
     // Snapshot roots after closing admission: a root is an Activation no live
     // Activation owns, so disposing roots recurses child-first into the forest.
@@ -1365,13 +1398,21 @@ export class SubagentContinuationManager {
     // Parent-originated delivery keeps the parent live through ownership, so
     // establish it before the message can enter the child's inbox.
     this.acquireOwnership(parent, activation.childId)
-    const message = options.source === undefined
+    const initial = options.source === undefined
       ? agentMessage(parent, content)
       : createUserMessage({ content, source: options.source })
-    const accepted = this.admitWaking(activation, message.id, () => {
-      if (options.delivery === 'steer') activation.handle.agent.steer(message)
-      else activation.handle.agent.followup(message)
-    })
+    const message = options.contentForId === undefined ? initial : freezeMessage({ ...initial, content: options.contentForId(initial.id) })
+    const rollback = options.beforeAccept?.(message.id)
+    let accepted: MessageId
+    try {
+      accepted = this.admitWaking(activation, message.id, () => {
+        if (options.delivery === 'steer') activation.handle.agent.steer(message)
+        else activation.handle.agent.followup(message)
+      })
+    } catch (error) {
+      rollback?.()
+      throw error
+    }
     // Past this point the caller has an id for this child, so its eventual
     // settlement is something the parent is owed an account of.
     activation.announced = true

@@ -1,0 +1,17 @@
+{
+  "kind": "historical-delivery-summary",
+  "baseline": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
+  "deliverySHA256": "d0c87b92af070630a352aecb3b7f4fb2ad1428bf6746e23cad1a5157df5c738b",
+  "environment": {
+    "os": "macOS arm64",
+    "node": "22.23.1",
+    "pnpm": "11.19.0"
+  },
+  "platformTests": 36,
+  "retainedRegressions": 237,
+  "cliCommands": 29,
+  "cliAssertions": 25,
+  "independentExtractedInstall": "passed",
+  "newModelRequests": 0,
+  "fullEvidence": "Retained in the separate v0.1 delivery archive; local paths and raw sessions are not part of this source repository."
+}

@@ -1,0 +1,21 @@
+# One single-process five-Agent study, over the actual shipped headless profile.
+- id: agent-instructions
+  disabled: true
+- id: system-prompt
+  config:
+    persona: You are conducting a bounded synthetic instrument study. Follow the scientific role instructions and use only the provided science tools. Do not invent results.
+- id: subagent
+  config:
+    scienceResultProject: !!js process.env.AI4S_PROJECT_ID
+    scienceResultMaxPending: 8
+- insert:
+    - id: ai4science-first-loop
+      name: './plugin.ts'
+      config:
+        root: !!js process.env.AI4S_RUN_DIR
+        project: !!js process.env.AI4S_PROJECT_ID
+        maxModelRequests: 200
+        serializeModelRequests: true
+        maxOutputTokens: 8192
+        maxObservedTokens: 900000
+        timeoutMs: 1200000

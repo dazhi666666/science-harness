@@ -1,0 +1,11 @@
+# Explicit opt-in over the existing science patch; omit this patch to keep legacy behavior.
+- id: subagent
+  config:
+    scienceResultProject: demo-project
+    scienceResultMaxPending: 8
+- id: ai4science-minimal
+  config:
+    project: demo-project
+    provider: spawn
+    maxDepth: 3
+    crossBranchResults: true

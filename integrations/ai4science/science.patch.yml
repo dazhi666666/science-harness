@@ -1,0 +1,8 @@
+# Load through dsh --profile headless --patch <this file>.
+- insert:
+    - id: ai4science-minimal
+      name: './plugin.ts'
+      config:
+        project: demo-project
+        provider: spawn
+        maxDepth: 2
