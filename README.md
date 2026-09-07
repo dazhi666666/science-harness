@@ -10,19 +10,53 @@ This release targets one trusted management domain on one machine. It does not c
 
 ## Project Vision
 
-The long-term vision of science-harness is to provide a foundation for scientific systems that can advance research from an initial question to evidence-supported conclusions. Given a research scope, available capabilities, and operating constraints, such a system could formulate hypotheses, develop experimental plans, collect observations, analyze results, revise its assumptions, and decide which investigation to pursue next. Each decision should remain connected to the evidence and execution history that motivated it.
+The core idea behind science-harness is to build an AI for Science system capable of independently carrying out the full research process. Its long-term scope extends from proposing research directions and scientific conjectures to planning studies, designing and executing experiments, adapting to experimental evidence, analyzing results, and writing research papers.
 
-Research is iterative. An experiment may fail, a hypothesis may be contradicted, or a result may expose a better question. We want the infrastructure to support that uncertainty: preserve unsuccessful attempts, distinguish observations from interpretations, and let researchers revisit earlier decisions without losing their provenance. Reports and papers are outputs of this process; the underlying measurements, computational artifacts, methods, and limitations must remain inspectable.
+> Research directions and hypotheses → Research plans → Experiment design and execution → Continuous adjustment based on evidence → Analysis and interpretation → Papers and further research.
 
-Agent organizations should follow the needs of the research problem. A small task may use one researcher and one execution capability. A larger investigation may involve several research branches, shared analysis specialists, and participants responsible for different instruments or computational jobs. These organizations should be able to form during work, delegate within explicit limits, and establish authorized collaboration as new needs emerge. Scientific responsibilities can change while the host continues to own Agent execution and the infrastructure preserves the facts of the project.
+This process is a continuing feedback loop. An experiment may contradict a hypothesis, reveal an unexpected effect, or suggest a better question. The system should use those observations to revise its plans and pursue the next investigation. Each decision and conclusion should remain connected to the measurements, computational artifacts, methods, and execution history that support it.
 
-Scientific methods and execution capabilities should also evolve independently. We want a community contributor to integrate a simulator, an existing analysis program, a long computation, or an instrument through a focused plugin interface. Other contributors should be able to develop research strategies, role configurations, statistical methods, or reporting tools on the same foundation. Computational research, simulation, and eventual laboratory or robotic integrations will have different requirements; each adapter must describe and validate the behavior it actually supports.
+### A Three-Layer Research Architecture
 
-Research records must outlive individual conversations and Agent instances. A new authorized participant should be able to understand the task, inspect previous operations and results, and continue managing unresolved work. Persistent records should make it possible to trace a claim back through its analysis and source data, understand which inputs and configurations produced a result, and distinguish a completed operation from one whose outcome is still uncertain.
+The envisioned architecture separates responsibilities into three conceptual layers: **cerebrum, midbrain, and cerebellum**. These names describe scientific reasoning, experiment coordination, and concrete execution. They do not prescribe a fixed number of Agents, processes, or services.
 
-Greater autonomy depends on dependable execution and clear authority. Models can propose research actions and interpret observations, while programs enforce permissions, resource ownership, budgets, operation identity, and lifecycle rules. The infrastructure should support human review where a project requires it and preserve useful records when an operation cannot safely or reliably continue. More capable production models can improve research decisions while using the same execution and accountability mechanisms.
+| Layer | Responsibilities | Intended implementation |
+|---|---|---|
+| **Cerebrum — scientific reasoning** | Propose research directions, formulate hypotheses, develop research plans, design experiments, interpret results, and decide what to investigate next. Submit experimental requirements to the midbrain through tools. | An Agent or a multi-agent organization focused on scientific reasoning and decision-making. |
+| **Midbrain — experiment coordination** | Translate scientific requirements into individual executable actions or operation sequences. Monitor execution, coordinate resources, respond to observed conditions, and return progress, exceptions, and results to the cerebrum. | An Agent or a multi-agent organization connecting scientific intent to available execution capabilities. |
+| **Cerebellum — concrete execution** | Perform actions in the physical experiment environment and return observations. Robotic capabilities may include navigation, path planning, and dexterous manipulation; other capabilities may include instruments, sensors, actuators, and IoT devices. | Device controllers, robot systems, tools, and capability plugins. Computational and simulation Providers can serve the corresponding execution role for nonphysical experiments. |
 
-We intend to develop this foundation through community use: practical adapters, reproducible examples, documented failures, and interfaces that improve as different research groups exercise them. Infrastructure v0.1 establishes an initial contribution path through configurable organizations, a public Provider interface, and recoverable execution records. Broad scientific autonomy, reliable physical-device integration, and strong scientific reasoning remain long-term goals that require separate evidence. Current infrastructure progress is measured by whether developers can change an organization, connect a capability, and retain control of a long-running operation through failure and restart.
+The basic information flow is:
+
+```mermaid
+flowchart LR
+    C["Cerebrum: scientific reasoning"] -->|Experimental requirements through tools| M["Midbrain: experiment coordination"]
+    M -->|Executable actions and sequences| E["Cerebellum: robots and devices"]
+    E -->|Observations, progress, and exceptions| M
+    M -->|Experiment state, results, and feedback| C
+```
+
+The midbrain would observe execution as it unfolds and adjust the operation sequence within the approved experimental scope. Changes that affect the scientific question, experimental design, or interpretation would return to the cerebrum for a research decision. Concrete controllers would remain responsible for device-specific behavior and local protection; model reasoning would coordinate those capabilities through explicit interfaces.
+
+### Flexible Multi-Agent Organizations
+
+Each reasoning layer may itself contain multiple Agents. For example, a main scientific Agent could coordinate several research subagents, each investigating a different hypothesis or method. Those research subagents could create their own midbrain Agents to organize experiments. Midbrain Agents from different research branches could communicate through authorized relationships, exchange result references, and coordinate access to shared execution resources.
+
+Organizations should form around the problem being studied. Some projects may need a single researcher and one Provider; others may need several research branches, shared analysis specialists, or multiple experiment coordinators. The architecture should allow different participant counts, delegation structures, and collaboration patterns without requiring a new core implementation for each arrangement. The three-layer model provides a way to assign responsibilities while leaving those organizational choices open.
+
+### A Platform Built Through Plugins
+
+science-harness is intended to be both an architectural foundation and an extensible platform. Research strategies, role configurations, analysis methods, reporting tools, and execution capabilities should be developed as focused plugins. Contributors should be able to improve a scientific method independently of the device adapters that execute its experiments.
+
+The cerebellum layer particularly depends on community adaptation. Different robots, dexterous hands, navigation systems, laboratory instruments, and IoT devices require different interfaces and operating guarantees. A growing collection of independently developed and validated capability plugins could make those resources available to research systems built on the same foundation. Each adapter must describe what it accepts, what it produces, what completion means, and how it handles interruption or uncertainty.
+
+### Persistent Research and Accountable Autonomy
+
+Research records must outlive individual conversations and Agent instances. A new authorized participant should be able to understand the task, inspect earlier operations and results, and continue managing unresolved work. Failed attempts, contradictory evidence, uncertain outcomes, and reasons for changing a plan should remain available alongside successful results.
+
+Greater autonomy depends on dependable execution and clear authority. Models can propose research actions and interpret observations, while programs enforce permissions, resource ownership, budgets, operation identity, and lifecycle rules. More capable production models can improve research decisions while using the same execution and accountability mechanisms.
+
+Infrastructure v0.1 establishes an initial foundation through configurable organizations, authorized cross-branch result exchange, a public Provider interface, and recoverable execution records. The full autonomous research cycle, adaptive robotic experimentation, navigation and dexterous manipulation integrations, and scientific paper generation described in this vision remain broader goals requiring their own implementations and evidence. Community progress should connect those goals to reproducible examples and validated capabilities, while keeping the scope of each release explicit.
 
 ## Quick Start
 
