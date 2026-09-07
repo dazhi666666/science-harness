@@ -1,5 +1,5 @@
 # science-harness
 
-项目说明与社区开发入口见 [README.md](README.md)。
+See [README.md](README.md) for the project overview and community development entry points.
 
-Harness 上游基线和许可证见 [UPSTREAM.json](UPSTREAM.json) 与 [LICENSE](LICENSE)。
+See [UPSTREAM.json](UPSTREAM.json) and [LICENSE](LICENSE) for the Harness baseline and upstream license.

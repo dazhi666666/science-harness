@@ -6,17 +6,29 @@ The repository is intended for community development. A Provider can implement t
 
 This release targets one trusted management domain on one machine. It does not claim physical-device safety, distributed high availability, multi-tenant isolation, model-thought recovery, or scientific correctness of model-authored reports. The upstream Harness baseline and local host changes are recorded in [UPSTREAM.json](UPSTREAM.json). The license for new AI4Science additions is still pending project-owner selection; upstream Harness and third-party components retain their existing licenses.
 
-中文说明如下。
+**The license for the AI4Science additions has not yet been selected. These additions are not presented as released under an open-source license.** Harness and third-party components retain their existing licenses. Local validation records do not establish the status of GitHub-hosted CI.
 
-面向科研 Agent 组织和执行插件的单机基础设施，基于 DeepSeek Harness。可替换角色配置、接入不同 Provider，并在进程结束、取消和重启后继续核对执行事实。
+## Project Vision
 
-**当前是社区源码发布候选。新增 AI4Science 代码的许可证尚未确定，因此暂不声称它已按开源许可证发布。** Harness 和第三方组件保留各自原有许可证。此仓库尚未推送至 GitHub，GitHub Actions 尚未实际执行。
+The long-term vision of science-harness is to provide a foundation for scientific systems that can advance research from an initial question to evidence-supported conclusions. Given a research scope, available capabilities, and operating constraints, such a system could formulate hypotheses, develop experimental plans, collect observations, analyze results, revise its assumptions, and decide which investigation to pursue next. Each decision should remain connected to the evidence and execution history that motivated it.
 
-## 快速开始
+Research is iterative. An experiment may fail, a hypothesis may be contradicted, or a result may expose a better question. We want the infrastructure to support that uncertainty: preserve unsuccessful attempts, distinguish observations from interpretations, and let researchers revisit earlier decisions without losing their provenance. Reports and papers are outputs of this process; the underlying measurements, computational artifacts, methods, and limitations must remain inspectable.
 
-需要 Node.js 22.19+（本地验证使用 22.23.1）、pnpm 11.19.0、Python 3 和 C++ 编译工具链。当前验收平台为 macOS arm64；其他操作系统尚未验证。
+Agent organizations should follow the needs of the research problem. A small task may use one researcher and one execution capability. A larger investigation may involve several research branches, shared analysis specialists, and participants responsible for different instruments or computational jobs. These organizations should be able to form during work, delegate within explicit limits, and establish authorized collaboration as new needs emerge. Scientific responsibilities can change while the host continues to own Agent execution and the infrastructure preserves the facts of the project.
 
-在仓库根目录执行：
+Scientific methods and execution capabilities should also evolve independently. We want a community contributor to integrate a simulator, an existing analysis program, a long computation, or an instrument through a focused plugin interface. Other contributors should be able to develop research strategies, role configurations, statistical methods, or reporting tools on the same foundation. Computational research, simulation, and eventual laboratory or robotic integrations will have different requirements; each adapter must describe and validate the behavior it actually supports.
+
+Research records must outlive individual conversations and Agent instances. A new authorized participant should be able to understand the task, inspect previous operations and results, and continue managing unresolved work. Persistent records should make it possible to trace a claim back through its analysis and source data, understand which inputs and configurations produced a result, and distinguish a completed operation from one whose outcome is still uncertain.
+
+Greater autonomy depends on dependable execution and clear authority. Models can propose research actions and interpret observations, while programs enforce permissions, resource ownership, budgets, operation identity, and lifecycle rules. The infrastructure should support human review where a project requires it and preserve useful records when an operation cannot safely or reliably continue. More capable production models can improve research decisions while using the same execution and accountability mechanisms.
+
+We intend to develop this foundation through community use: practical adapters, reproducible examples, documented failures, and interfaces that improve as different research groups exercise them. Infrastructure v0.1 establishes an initial contribution path through configurable organizations, a public Provider interface, and recoverable execution records. Broad scientific autonomy, reliable physical-device integration, and strong scientific reasoning remain long-term goals that require separate evidence. Current infrastructure progress is measured by whether developers can change an organization, connect a capability, and retain control of a long-running operation through failure and restart.
+
+## Quick Start
+
+You need Node.js 22.19+ (local validation used 22.23.1), pnpm 11.19.0, Python 3, and a C++ build toolchain. The validated platform is macOS arm64; other operating systems have not been verified.
+
+Run these commands from the repository root:
 
 ```sh
 python3 integrations/ai4science/platform/setup.py
@@ -27,50 +39,50 @@ python3 integrations/ai4science/platform/manage.py --home .ai4science/home start
 python3 integrations/ai4science/platform/manage.py --home .ai4science/home status --project example
 ```
 
-安装脚本使用两个现有锁文件安装依赖，编译宿主的 `fs-ext`，并构建类型声明。实际应用入口仍是 `dsh --profile ai4science`，`manage.py` 负责从源码启动它。项目和设备目录均由配置决定；示例运行数据自动被 Git 忽略。
+The setup script installs dependencies from the two existing lockfiles, compiles the host's `fs-ext` dependency, and builds type declarations. The application entry remains `dsh --profile ai4science`; `manage.py` launches it from source. Configuration determines project and device directories. Git ignores generated example data.
 
-## 能做什么
+## Capabilities
 
-- 通过配置声明角色、提示词、模型、工具、创建权限、数量和委派深度，运行过程中使用原生 Harness 创建参与者。
-- 不同真实父节点下的参与者，在双方父节点独立授权后交换持久结果引用及关联回复；保留原发送者、活实例校验和默认拒绝。
-- 一个 SQLite 执行库记录项目、请求身份、资源、预算、状态、结果和任务事实。重复请求跨重启仍返回原操作。
-- 两个独立参考 Provider：共享模拟仪器，以及可分块继续的哈希计算作业。设备日志独立记录实际执行，用于检查是否重复动作。
-- 程序等待、取消请求、恢复核对、结果完整性检查和导出。原 first-loop 保留为场景应用。
+- Configure roles, instructions, models, tools, creation permissions, participant limits, and delegation depth. Create participants at runtime through native Harness mechanisms.
+- Exchange persistent result references and correlated replies between participants with different real parents, after both parents independently authorize the relationship. Preserve the original sender, exact live-instance checks, and default denial.
+- Store projects, request identities, resources, budgets, operation states, results, and task facts in one SQLite execution database. Repeated requests return the original operation across restarts.
+- Use two independent reference Providers: a shared simulated instrument and a hash computation that continues in chunks. Independent device journals record actual execution to detect duplicate actions.
+- Wait in program code, request cancellation, reconcile after restart, verify result integrity, and export artifacts. Keep the original first-loop research scenario as an example application.
 
-## 开发入口
+## Development Entry Points
 
-| 开发目标 | 入口 |
+| Development task | Entry point |
 |---|---|
-| 接入设备或计算能力 | [公开 SDK](integrations/ai4science/platform/sdk.ts)、[Provider 测试工具](integrations/ai4science/platform/testing.ts) |
-| 参考 Provider | [模拟仪器](integrations/ai4science/platform/providers/instrument.ts)、[长计算](integrations/ai4science/platform/providers/compute.ts) |
-| 更换组织 | [角色配置与校验](integrations/ai4science/platform/organization.ts)、[示例配置](integrations/ai4science/platform/scenes/) |
-| 宿主插件组合 | [platform/plugin.ts](integrations/ai4science/platform/plugin.ts) |
-| 持久执行与结果 | [execution.ts](integrations/ai4science/platform/execution.ts)、[artifacts.ts](integrations/ai4science/platform/artifacts.ts) |
-| 架构、权限和生命周期 | [architecture.md](architecture.md) |
-| 运行命令和 first-loop 示例 | [first-loop.md](first-loop.md) |
+| Integrate a device or computation capability | [Public SDK](integrations/ai4science/platform/sdk.ts), [Provider test utilities](integrations/ai4science/platform/testing.ts) |
+| Explore reference Providers | [Simulated instrument](integrations/ai4science/platform/providers/instrument.ts), [long computation](integrations/ai4science/platform/providers/compute.ts) |
+| Change the organization | [Role configuration and validation](integrations/ai4science/platform/organization.ts), [example configurations](integrations/ai4science/platform/scenes/) |
+| Compose the host plugin | [platform/plugin.ts](integrations/ai4science/platform/plugin.ts) |
+| Manage persistent execution and results | [execution.ts](integrations/ai4science/platform/execution.ts), [artifacts.ts](integrations/ai4science/platform/artifacts.ts) |
+| Understand architecture, permissions, and lifecycle | [architecture.md](architecture.md) |
+| Run operations and the first-loop example | [first-loop.md](first-loop.md) |
 
-Provider 模块导出 `createProvider(config)`，只依赖公开 `sdk.ts`，实现 `describe / prepare / submit / query / cancel`。在部署 JSON 中添加模块路径和参数即可注册，无需编辑核心。Provider 参数和具体研究阶段不属于执行内核。
+A Provider module exports `createProvider(config)`, depends only on the public `sdk.ts`, and implements `describe / prepare / submit / query / cancel`. Register it by adding its module path and parameters to the deployment JSON; no core edit is required. Provider parameters and scientific research stages belong outside the execution core.
 
-## 测试与贡献
+## Testing and Contributions
 
 ```sh
 python3 integrations/ai4science/platform/check.py --output .ai4science/check-01
 ```
 
-这个命令不需要模型密钥，运行基础设施、原通信权限、原最小插件、Teams、first-loop 边界及相关上游回归，并通过真实 CLI 做跨进程验收。再次执行请使用新的输出目录。测试结果在指定目录，运行数据不提交到 Git。
+This command requires no model credentials. It runs infrastructure tests, existing communication and permission tests, minimum-plugin tests, Teams tests, first-loop boundary tests, and relevant upstream regressions. It also runs acceptance checks across separate processes through the actual CLI. Use a fresh output directory for each run. Results are written there; runtime data is not committed to Git.
 
-v0.1 的原交付通过 36 项基础设施测试和 237 项保留回归（共 273 项），以及 29 条实际 CLI 命令、25 项断言。历史完整证据保留在交付 ZIP；源码仓库只提交[可公开的摘要](validation/v0.1.json)，不复制含本机路径的会话、设备数据库或个人配置。GitHub CI 配置是待运行的自动化，不代表已经通过的远程检查。
+The original v0.1 delivery passed 36 infrastructure tests and 237 retained regressions (273 total), plus 29 actual CLI commands and 25 assertions. Complete historical evidence remains in the delivery ZIP. The source repository includes a [public summary](validation/v0.1.json), without sessions containing local paths, device databases, or personal configuration. A GitHub workflow configuration alone is not evidence that remote checks have passed.
 
-提交变更时说明问题、实现和实际执行的检查。Provider 变更需要独立设备执行记录、重复请求、取消和恢复测试；权限变更需要保留负面测试。不要用脚本响应冒充真实模型运行，不用科研结论质量作为基础设施验收门槛。许可证确定后再接受社区代码贡献；目前不添加 CLA 或预设贡献者授权条款。
+When submitting a change, describe the problem, implementation, and checks actually executed. Provider changes need independent device execution records and tests for duplicate requests, cancellation, and recovery. Permission changes must retain negative tests. Do not present scripted responses as real-model execution or use scientific conclusion quality as an infrastructure acceptance requirement. Community code contributions should wait until the license is selected; no CLA or contributor licensing terms have been established.
 
-## 范围与限制
+## Scope and Limitations
 
-首版为一个受信管理域、单机、每个设备范围一个有效控制者。可保存多个项目，但每个活动 Harness 组织只关联一个项目。参考 Provider 在查询时推进本地工作，没有控制器查询时会暂停。
+This version supports one trusted management domain on one machine, with one effective controller per device scope. It can retain multiple projects, but each active Harness organization is associated with one project. Reference Providers advance local work when queried and pause while no controller queries them.
 
-`unknown` 不释放资源或预算，也不自动重放。预算在登记时全额保守计费，取消后不自动退款。关闭 Agent、插件或 CLI 不等于设备停止。永久挂起的适配器需要外部终止进程，重启后再核对。真实设备、多租户、分布式高可用、模型思考恢复和恶意插件隔离不在本版已验证范围内。
+An `unknown` operation retains its resources and budget and is never automatically replayed. The full conservative budget is charged at registration, with no automatic refund after cancellation. Closing an Agent, plugin, or CLI does not prove that a device has stopped. A permanently hung adapter requires external process termination followed by reconciliation after restart. Physical devices, multi-tenancy, distributed high availability, model-thought recovery, and malicious-plugin isolation are outside this version's verified scope.
 
-## 上游与许可证
+## Upstream and Licensing
 
-Harness 基线固定为 `d347e703908d0406b7a7ef80e3a0e594d86b2215`。宿主已修改；仓库源码已经包含[完整宿主补丁](patches/harness-ai4science-v0.1.patch)，不要重复应用。[UPSTREAM.json](UPSTREAM.json) 记录基线、文件和补丁哈希。
+The Harness baseline is pinned to `d347e703908d0406b7a7ef80e3a0e594d86b2215`. The host is modified: the repository source already includes the [complete host patch](patches/harness-ai4science-v0.1.patch). Do not apply it again. [UPSTREAM.json](UPSTREAM.json) records the baseline, affected files, and patch hash.
 
-上游 MIT 文本及 DeepSeek 版权声明保留在 [LICENSE](LICENSE)，第三方许可证保留在各组件目录。新增 AI4Science 代码的许可证状态见 [integrations/ai4science/LICENSE](integrations/ai4science/LICENSE)，需由项目所有者决定后再正式发布。
+The upstream MIT license and DeepSeek copyright notice remain in [LICENSE](LICENSE). Third-party licenses remain in their component directories. The license status of the new AI4Science code is recorded in [integrations/ai4science/LICENSE](integrations/ai4science/LICENSE) and must be decided by the project owner before a formal release.

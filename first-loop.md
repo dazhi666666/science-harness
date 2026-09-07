@@ -2,7 +2,7 @@
 
 ## 本地操作
 
-在仓库根目录运行 `python3 integrations/ai4science/platform/setup.py`，然后按 [README](README.md#快速开始) 安装管理 profile。部署配置示例为 [local.config.json](integrations/ai4science/platform/examples/local.config.json)，文件路径相对于此 JSON 解析。模型配置不属于执行内核。
+在仓库根目录运行 `python3 integrations/ai4science/platform/setup.py`，然后按 [README](README.md#quick-start) 安装管理 profile。部署配置示例为 [local.config.json](integrations/ai4science/platform/examples/local.config.json)，文件路径相对于此 JSON 解析。模型配置不属于执行内核。
 
 每个管理命令取得控制权、核对未完成记录、执行命令并关闭。恢复查询可能推进本地 Provider，因此 status/stop 不是设备的零副作用快照。
 
