@@ -10,6 +10,7 @@ import type { ExecutionEngine } from './execution.ts'
 import type { Json } from './sdk.ts'
 import { Artifacts } from './artifacts.ts'
 import { startDashboard } from './dashboard.ts'
+import { pathToFileURL } from 'node:url'
 
 export const name = 'ai4science-management'
 export const inject = ['cmdlineArgs', 'appReady', 'appExit']
@@ -18,7 +19,7 @@ export interface Config {
 }
 export const Config: z<Config> = z.object({ configPath: z.string().required() })
 
-const help = `AI4Science infrastructure v0.1 — dsh --profile ai4science <command> [options]
+const help = `AI4Science infrastructure v0.2 — dsh --profile ai4science <command> [options]
   create    --project ID --budget NUMBER
   start     --project ID --provider ID --key KEY --input JSON_FILE [--wait --timeout-ms NUMBER]
   status    --project ID
@@ -32,6 +33,17 @@ const help = `AI4Science infrastructure v0.1 — dsh --profile ai4science <comma
   reconcile --project ID
   stop      --project ID
   serve     [--port NUMBER --refresh-ms NUMBER]
+  experiment-create --project ID --key KEY --input REQUEST_JSON
+  experiment-list   --project ID
+  experiment-status --project ID --experiment ID
+  experiment-act    --project ID --experiment ID --input DECISION_JSON
+  experiment-wait   --project ID --experiment ID [--after NUMBER --until change|decision --timeout-ms NUMBER]
+  experiment-cancel --project ID --experiment ID
+  experiment-escalate --project ID --experiment ID --input PROPOSAL_JSON --reason TEXT
+  experiment-resolve --project ID --experiment ID --reason TEXT
+  experiment-finish --project ID --experiment ID --input COMPLETION_JSON
+  experiment-assess --project ID --experiment ID --assessor TRUSTED_MODULE
+Existing experiment mutations explicitly claim control as the currently configured CLI operator; persisted actor IDs confer no authority.
 Each invocation opens the same durable domain, reconciles unfinished operations, then closes its controller.
 stop closes management only. It does not cancel or prove that a device has stopped.
 Cancellation is a request; inspect the returned observed operation state.
@@ -93,6 +105,11 @@ async function execute(
       wait: { type: 'boolean' },
       'timeout-ms': { type: 'string' },
       operation: { type: 'string' },
+      experiment: { type: 'string' },
+      assessor: { type: 'string' },
+      after: { type: 'string' },
+      until: { type: 'string' },
+      reason: { type: 'string' },
       artifact: { type: 'string' },
       target: { type: 'string' },
       port: { type: 'string' },
@@ -117,6 +134,16 @@ async function execute(
     'reconcile',
     'stop',
     'serve',
+    'experiment-create',
+    'experiment-list',
+    'experiment-status',
+    'experiment-act',
+    'experiment-wait',
+    'experiment-cancel',
+    'experiment-escalate',
+    'experiment-resolve',
+    'experiment-finish',
+    'experiment-assess',
   ]
   const command = positionals[0]
   if (positionals.length !== 1 || command === undefined || !commands.includes(command))
@@ -156,6 +183,47 @@ async function execute(
     const timeoutMs = values['timeout-ms'] === undefined ? 30000 : Number(values['timeout-ms'])
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0)
       throw new Error('--timeout-ms must be a positive safe integer')
+    if (command.startsWith('experiment-')) {
+      const api = engine.experiments
+      const input = () => JSON.parse(readFileSync(required('input'), 'utf8'))
+      if (command === 'experiment-create') return api.create(access, required('key'), input())
+      if (command === 'experiment-list') return api.list(access)
+      const id = required('experiment')
+      if (command === 'experiment-status') return api.get(access, id)
+      if (command === 'experiment-wait') {
+        const until = values.until ?? 'decision'
+        if (until !== 'change' && until !== 'decision') throw new Error('--until must be change or decision')
+        return await api.wait(access, id, {
+          after: values.after === undefined ? api.get(access, id).cursor : Number(values.after),
+          until,
+          timeoutMs,
+          signal,
+        })
+      }
+      api.claim(access, id, values.reason ?? `Explicit local operator command: ${command}`)
+      if (command === 'experiment-act') return await api.submit(access, id, input())
+      if (command === 'experiment-cancel') return await api.cancel(access, id)
+      if (command === 'experiment-escalate') return api.escalate(access, id, required('reason'), input())
+      if (command === 'experiment-resolve') return api.resolve(access, id, required('reason'))
+      if (command === 'experiment-assess') {
+        const module = (await import(pathToFileURL(resolve(required('assessor'))).href)) as {
+          assessExperiment?: (engine: ExecutionEngine, context: typeof access, id: string) => unknown
+        }
+        if (typeof module.assessExperiment !== 'function')
+          throw new Error('Trusted domain module must export assessExperiment')
+        return await module.assessExperiment(engine, access, id)
+      }
+      const completion = input()
+      if (
+        !completion ||
+        typeof completion.summary !== 'string' ||
+        !Array.isArray(completion.artifactIds) ||
+        !Array.isArray(completion.assessmentIds) ||
+        ![...completion.artifactIds, ...completion.assessmentIds].every((v) => typeof v === 'string')
+      )
+        throw new Error('Completion requires summary, artifactIds and assessmentIds')
+      return api.finish(access, id, completion.summary, completion.artifactIds, completion.assessmentIds)
+    }
     switch (command) {
       case 'start': {
         const input: Json = JSON.parse(readFileSync(required('input'), 'utf8'))

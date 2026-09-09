@@ -1,0 +1,47 @@
+{
+  "project": "cross-branch-project",
+  "rootRole": "controller",
+  "maxParticipants": 2,
+  "maxDepth": 1,
+  "roles": {
+    "controller": {
+      "instructions": "Execute the assigned bounded experiment using actual tool feedback. Wait in program tools; return observed results to your parent.",
+      "model": {
+        "provider": "teams-probe",
+        "model": "script"
+      },
+      "tools": [
+        "org_create",
+        "org_message",
+        "org_discover",
+        "experiment_create",
+        "experiment_status",
+        "experiment_claim",
+        "experiment_finish",
+        "sampling_finish",
+        "org_finish"
+      ],
+      "creates": {
+        "worker": 1
+      },
+      "maxInstances": 1
+    },
+    "worker": {
+      "instructions": "Execute the assigned bounded experiment using actual tool feedback. Wait in program tools; return observed results to your parent.",
+      "model": {
+        "provider": "teams-probe",
+        "model": "script"
+      },
+      "tools": [
+        "experiment_act",
+        "experiment_wait",
+        "experiment_status",
+        "sampling_assess",
+        "org_message"
+      ],
+      "creates": {},
+      "maxInstances": 1
+    }
+  },
+  "relations": []
+}

@@ -1,6 +1,6 @@
 {
   "name": "@ai4science/platform",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "exports": { ".": "./index.ts", "./sdk": "./sdk.ts", "./testing": "./testing.ts", "./plugin": "./plugin.ts", "./organization": "./organization.ts" },

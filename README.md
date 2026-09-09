@@ -1,4 +1,4 @@
-# science-harness — Infrastructure v0.1
+# science-harness — Experiment Infrastructure v0.2
 
 AI4Science Harness is a small, plugin-oriented foundation for scientific Agent organizations and execution Providers. It keeps Agent lifecycle, sessions, native parent-child execution, residency, messaging, and shutdown in DeepSeek Harness while adding configurable organization policy, durable operation records, resource and budget control, result provenance, cancellation, and restart reconciliation.
 
@@ -56,7 +56,7 @@ Research records must outlive individual conversations and Agent instances. A ne
 
 Greater autonomy depends on dependable execution and clear authority. Models can propose research actions and interpret observations, while programs enforce permissions, resource ownership, budgets, operation identity, and lifecycle rules. More capable production models can improve research decisions while using the same execution and accountability mechanisms.
 
-Infrastructure v0.1 establishes an initial foundation through configurable organizations, authorized cross-branch result exchange, a public Provider interface, and recoverable execution records. The full autonomous research cycle, adaptive robotic experimentation, navigation and dexterous manipulation integrations, and scientific paper generation described in this vision remain broader goals requiring their own implementations and evidence. Community progress should connect those goals to reproducible examples and validated capabilities, while keeping the scope of each release explicit.
+Infrastructure v0.2 builds on configurable organizations, authorized cross-branch result exchange, a public Provider interface, and recoverable execution records. It adds durable experiment requirements, evidence-linked action decisions, program-driven feedback, explicit review and execution closure. The full autonomous research cycle, adaptive robotic experimentation, navigation and dexterous manipulation integrations, and scientific paper generation described in this vision remain broader goals requiring their own implementations and evidence. Community progress should connect those goals to reproducible examples and validated capabilities, while keeping the scope of each release explicit.
 
 ## Quick Start
 
@@ -82,6 +82,34 @@ The setup script installs dependencies from the two existing lockfiles, builds t
 - Store projects, request identities, resources, budgets, operation states, results, and task facts in one SQLite execution database. Repeated requests return the original operation across restarts.
 - Use two independent reference Providers: a shared simulated instrument and a hash computation that continues in chunks. Independent device journals record actual execution to detect duplicate actions.
 - Wait in program code, request cancellation, reconcile after restart, verify result integrity, and export artifacts. Keep the original first-loop research scenario as an example application.
+
+## Experiment Collaboration and Feedback
+
+An experiment now connects its goal, method version, declared inputs, permitted actions, operation history, assessments and completion artifacts. It uses the existing execution database and Provider interface. Agent creation, delegation, messaging and continuation still belong to Harness.
+
+The [sampling example](integrations/ai4science/platform/scenes/sampling.ts) starts with four actual simulated readings, checks their completeness, and selects one permitted supplementary acquisition when the required six readings are not yet available. Each adjustment records its rationale and evidence references before dispatch. The domain plugin owns that completeness rule and execution report; the platform checks provenance and lifecycle rather than scientific conclusions.
+
+Run the full keyless example through separate real CLI processes:
+
+```sh
+python3 integrations/ai4science/platform/experiment-check.py --output .ai4science/experiment-demo
+```
+
+The check installs its own profile and an independent local-job Provider, exercises the sampling loop, reconnects to computation after the submitting process exits, and observes actual worker cancellation. It leaves requests, decisions, assessment output, execution and Provider databases, and exact command/stdout/stderr records in the output directory. `results.json` lists assertions; `commands.json` contains the actual IDs and responses. See [the operating guide](first-loop.md#experiment-v02) for individual commands.
+
+The same recipe also runs through two native Harness organizations configured in [compact](integrations/ai4science/platform/examples/sampling.compact.organization.json) and [hierarchical](integrations/ai4science/platform/examples/sampling.hierarchical.organization.json) JSON files. Their `teams-probe/script` model identifiers belong to the deterministic test fixture; production compositions must configure an installed model adapter. The test scripts use returned tool data and actual delegated identities, and do not supply precomputed Provider outcomes.
+
+```sh
+pnpm exec vitest run --config integrations/ai4science/platform/vitest.config.ts integrations/ai4science/platform/experiment-organizations.spec.ts --reporter=verbose
+```
+
+Use `engine.experiments` from [the public platform exports](integrations/ai4science/platform/index.ts), or the native `experiment_create`, `experiment_act`, `experiment_wait`, `experiment_status`, `experiment_claim`, `experiment_escalate`, `experiment_resolve`, `experiment_finish` and `experiment_cancel` tools. Role tool allowlists and Provider grants continue to apply. A bounded worker should receive `experiment_act`, not unrestricted `execution_submit`; the trusted operator and SDK remain able to manage standalone operations.
+
+This release accepts a finite catalog of exact action inputs with per-action counts, a total operation limit and an experiment budget. It does not compile a workflow or accept arbitrary parameter changes. An adjustment outside that catalog blocks new experiment actions for controller review; changing requirements requires a new experiment. A live controller claim is not restored from disk. Provider version/configuration fingerprints are pinned per experiment and exposed in status; a changed binding blocks additional actions. Waits query Providers in program code and return meaningful progress, a decision point or a timeout. They do not keep asking the model to poll.
+
+Execution closure, domain assessments and scientific conclusions remain separate. Generic `experiment_finish` verifies settled operations and sourced artifacts; it does not enforce a sampling policy. The sampling plugin's `sampling_finish` additionally checks its own completeness requirement. The existing dashboard continues to manage operations; experiment commands and decision history are currently exposed through CLI/tools/SDK only.
+
+**Database upgrade:** opening a v0.1 execution database migrates schema 1 to schema 2 in one transaction, preserving completed operations, budgets and result links. Older platform code refuses schema 2; there is no automatic downgrade. Keep the original execution and device directories. Neither migration nor an experiment claim revives a previous Agent's communication authorization.
 
 ## Independently Running Execution Plugin
 
@@ -190,13 +218,15 @@ python3 integrations/ai4science/platform/check.py --output .ai4science/check-01
 
 This command requires no model credentials. It runs infrastructure tests, existing communication and permission tests, minimum-plugin tests, Teams tests, first-loop boundary tests, and relevant upstream regressions. It also runs acceptance checks across separate processes through the actual CLI. Use a fresh output directory for each run. Results are written there; runtime data is not committed to Git.
 
+The v0.2 verification record is [validation/experiments-v0.2.json](validation/experiments-v0.2.json). It identifies the exact source fingerprints, local commands and limitations; raw local evidence is generated by the commands above. No model-quality evaluation was performed.
+
 The original v0.1 delivery passed 36 infrastructure tests and 237 retained regressions (273 total), plus 29 actual CLI commands and 25 assertions. Complete historical evidence remains in the delivery ZIP. The source repository includes a [public summary](validation/v0.1.json), without sessions containing local paths, device databases, or personal configuration. A GitHub workflow configuration alone is not evidence that remote checks have passed.
 
 When submitting a change, describe the problem, implementation, and checks actually executed. Provider changes need independent device execution records and tests for duplicate requests, cancellation, and recovery. Permission changes must retain negative tests. Do not present scripted responses as real-model execution or use scientific conclusion quality as an infrastructure acceptance requirement. Community code contributions should wait until the license is selected; no CLA or contributor licensing terms have been established.
 
 ## Scope and Limitations
 
-This version supports one trusted management domain on one machine, with one effective controller per device scope. It can retain multiple projects, but each active Harness organization is associated with one project. Reference Providers advance local work when queried and pause while no controller queries them.
+This version supports one trusted management domain on one machine, with one effective controller per device scope. It can retain multiple projects, but each active Harness organization is associated with one project. The built-in instrument and chunked compute Providers advance local work when queried and pause otherwise. The separately installed local-job Provider executes independently of queries.
 
 An `unknown` operation retains its resources and budget and is never automatically replayed. The full conservative budget is charged at registration, with no automatic refund after cancellation. Closing an Agent, plugin, or CLI does not prove that a device has stopped. A permanently hung adapter requires external process termination followed by reconciliation after restart. Physical devices, multi-tenancy, distributed high availability, model-thought recovery, and malicious-plugin isolation are outside this version's verified scope.
 

@@ -31,6 +31,66 @@ python3 integrations/ai4science/platform/install.py --home .ai4science/home --un
 
 通过场景配置选择 provider/model、工具、角色关系和数量；通过 roleProviders 授予具体执行能力。新的 Provider 只需实现公开 SDK，添加至部署文件中的 providers 数组；[长计算适配器](integrations/ai4science/platform/providers/compute.ts) 就是与仪器不同输入输出的例子。
 
+<a id="experiment-v02"></a>
+
+## v0.2 实验级操作
+
+最短的可复现入口仍是宿主 dsh profile，不需要模型凭据。以下命令创建独立测试目录、安装 profile 与公开接口接入的外部 Provider，执行有证据的采样追加、长任务重连和实际取消：
+
+```sh
+python3 integrations/ai4science/platform/experiment-check.py --output .ai4science/experiment-demo
+```
+
+目录必须是新的。查看 `results.json` 的断言、`commands.json` 中各次真实命令及 stdout/stderr、`assessment.json` 的读数统计。原始数据在 execution 的产物目录，设备 starts/samples 位于 instrument/instrument.sqlite，外部作业的真实启动与退出记录位于 external-device/jobs.sqlite；这些都来自实际执行。脚本退出后 home profile 保留，可继续通过原管理命令查看项目 experiments。公开验证摘要去除个人路径，完整运行记录保留本地，不另生成 ZIP。
+
+手动操作可沿用 Quick Start 的 profile 和项目 example。先创建需求，再使用返回的真实实验 ID：
+
+```sh
+python3 integrations/ai4science/platform/manage.py --home .ai4science/home experiment-create --project example --key sampling-1 --input integrations/ai4science/platform/examples/sampling.request.json
+python3 integrations/ai4science/platform/manage.py --home .ai4science/home experiment-list --project example
+python3 integrations/ai4science/platform/manage.py --home .ai4science/home experiment-status --project example --experiment EXPERIMENT_ID
+```
+
+创建只记录需求，不派发设备动作。EXPERIMENT_ID 等大写值是待替换占位符，不能原样执行。将下面 JSON 保存为初次决定文件，例如 `.ai4science/measure.json`：
+
+```json
+{"requestKey":"measure-1","actionId":"measure","rationale":"Collect the approved initial observations."}
+```
+
+```sh
+python3 integrations/ai4science/platform/manage.py --home .ai4science/home experiment-act --project example --experiment EXPERIMENT_ID --input .ai4science/measure.json
+python3 integrations/ai4science/platform/manage.py --home .ai4science/home experiment-wait --project example --experiment EXPERIMENT_ID --until decision --timeout-ms 30000
+python3 integrations/ai4science/platform/manage.py --home .ai4science/home experiment-assess --project example --experiment EXPERIMENT_ID --assessor integrations/ai4science/platform/scenes/sampling.ts
+```
+
+评估器实际读取 raw.json：初次应看到 observed=4、required=6 和 insufficient。将返回的 artifactId 填入下一份决定，不猜测结果 ID：
+
+```json
+{"requestKey":"supplement-1","actionId":"supplement","rationale":"The recorded completeness assessment found four observations below the required six.","evidenceArtifactIds":["ASSESSMENT_ARTIFACT_ID"]}
+```
+
+保存为 `.ai4science/supplement.json`，用相同 experiment-act/experiment-wait/experiment-assess 命令完成追加和复核；此时 observed=6。完整检查脚本实际执行这些命令并验证独立设备记录。`--assessor` 选择的是可信本地领域模块，通用入口不导入固定的采样方法；不要将任意模型文本当作模块路径。新增方法可以实现相同 `assessExperiment(engine, context, experimentId)` 导出。
+
+结束决定 JSON 由 summary、artifactIds 和 assessmentIds 组成，使用已返回的真实标识。通用结束只核对执行已结束和来源完整；采样场景的 Agent 工具 sampling_finish 还会执行自己的完整性检查并生成 Markdown 执行报告。
+
+```sh
+python3 integrations/ai4science/platform/manage.py --home .ai4science/home experiment-finish --project example --experiment EXPERIMENT_ID --input COMPLETION_JSON
+python3 integrations/ai4science/platform/manage.py --home .ai4science/home export --project example --artifact ARTIFACT_ID --target .ai4science/experiment-result.json
+python3 integrations/ai4science/platform/manage.py --home .ai4science/home experiment-cancel --project example --experiment EXPERIMENT_ID
+```
+
+需要越界调整时使用 `experiment-escalate --reason TEXT --input PROPOSAL_JSON`，阻止新动作并保留提案。当前 controller 用 `experiment-resolve --reason TEXT` 只能继续原需求；更改参数或方法要建新实验。状态中的 lastIssue 显示最近一次登记失败；budgetUsed 与 projectBudget 分别是实验和项目的保守用量。providerBindings 显示创建时固定的版本/配置指纹，变化会阻断追加动作。
+
+每条 CLI 写命令在新进程中以当前获准操作者显式 claim，读取历史 actorId 不恢复权限。普通 Agent 通过 role tools 获得有限能力，受限 worker 不授予绕过实验动作目录的 execution_submit。跨分支通信仍要求双方真实父节点授权，实验接管不替代此步骤。等待超时或停止管理不等于设备取消；必须继续查看实际状态，unknown 保留占用及预算。
+
+两个确定性组织使用相同 `sampling.request.json`，配置分别在 `examples/sampling.compact.organization.json`（controller → worker）和 `examples/sampling.hierarchical.organization.json`（controller → manager → worker）。测试通过真实 Harness 创建、身份传递、等待、消息续跑和退出；数据质量不足的分支由实际工具返回驱动。模型标识 teams-probe/script 仅供测试组合，生产模型由宿主配置另行提供。测试保留的报告和 Session 记录位于被 Git 忽略的 `integrations/ai4science/evidence/platform/organization/experiment-*`，不能误称为本轮真实模型验收。
+
+```sh
+pnpm exec vitest run --config integrations/ai4science/platform/vitest.config.ts integrations/ai4science/platform/experiment-organizations.spec.ts --reporter=verbose
+```
+
+打开旧执行库会事务性迁移 schema 1 → 2；已完成操作不重放，数据库和 Provider 目录不能随意更换。旧版本程序不支持 schema 2，未提供降级迁移。当前页面仍展示原操作级功能，实验详情通过 CLI/工具/SDK 读取。本轮结果见 [validation/experiments-v0.2.json](validation/experiments-v0.2.json)，不重新评估科研结论，也不新增设计文档。
+
 ## First-loop 是场景应用
 
 研究问题仍是比较条件 -1 与 +1 下的模拟仪器输出，同时考虑采样顺序漂移和不确定性。其五个角色及真实父子关系为：主 Agent → 研究 A → 中脑 A，以及主 Agent → 研究 B → 中脑 B。

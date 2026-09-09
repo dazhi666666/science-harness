@@ -34,7 +34,7 @@ def main():
     # JSON is a YAML subset. Absolute source paths keep plugin resolution independent of cwd.
     patch = [{'insert': [{'id': 'ai4science-management', 'name': str(here / 'cli.ts'), 'config': {'configPath': str(config)}}]}]
     (profile / 'cordis.patch.yml').write_text(json.dumps(patch, indent=2) + '\n')
-    marker.write_text(json.dumps({'version': '0.1.0', 'source': str(here), 'config': str(config)}, indent=2) + '\n')
+    marker.write_text(json.dumps({'version': json.loads((here / 'package.json').read_text())['version'], 'source': str(here), 'config': str(config)}, indent=2) + '\n')
     print(json.dumps({'installedProfile': str(profile), 'entry': 'dsh --profile ai4science', 'config': str(config)}))
 
 

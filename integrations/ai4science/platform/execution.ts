@@ -16,8 +16,16 @@ import {
   type Json,
 } from './sdk.ts'
 
+import {
+  ExperimentStore,
+  EXPERIMENT_SCHEMA,
+  type ExperimentAPI,
+  type ExperimentBinding,
+} from './experiments.ts'
+import { Artifacts } from './artifacts.ts'
+
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled'])
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 interface Row {
   id: string
   project_id: string
@@ -52,6 +60,7 @@ export interface SubmitOperation {
 /** One effective controller holds a separate SQLite exclusive transaction for its entire lifetime. */
 export class ExecutionEngine {
   readonly directory: string
+  private experimentStore!: ExperimentStore
   private db!: DatabaseSync
   private lock!: DatabaseSync
   private readonly providers = new Map<string, ExecutionProvider>()
@@ -95,15 +104,37 @@ export class ExecutionEngine {
       this.db = new DatabaseSync(resolve(this.directory, 'execution.sqlite'))
       this.db.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;')
       const version = (this.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
-      if (version !== 0 && version !== SCHEMA_VERSION)
+      if (version !== 0 && version !== 1 && version !== SCHEMA_VERSION)
         throw new Error(`Unsupported execution schema ${version}`)
       this.db
-        .exec(`CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,budget_limit REAL NOT NULL,budget_used REAL NOT NULL DEFAULT 0);
+        .exec(`BEGIN IMMEDIATE; CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,budget_limit REAL NOT NULL,budget_used REAL NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS operations(id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES projects(id),actor_id TEXT NOT NULL,provider_id TEXT NOT NULL,provider_version TEXT NOT NULL,provider_fingerprint TEXT NOT NULL,request_key TEXT NOT NULL,request_json TEXT NOT NULL,input_json TEXT NOT NULL,resources_json TEXT NOT NULL,budget REAL NOT NULL,state TEXT NOT NULL,cancel_requested INTEGER NOT NULL DEFAULT 0,progress_json TEXT,detail TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(project_id,request_key));
         CREATE TABLE IF NOT EXISTS resources(name TEXT PRIMARY KEY,operation_id TEXT NOT NULL REFERENCES operations(id));
         CREATE TABLE IF NOT EXISTS artifacts(id TEXT PRIMARY KEY,operation_id TEXT NOT NULL REFERENCES operations(id),path TEXT NOT NULL,sha256 TEXT NOT NULL,bytes INTEGER NOT NULL,media_type TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,operation_id TEXT,project_id TEXT,type TEXT NOT NULL,data_json TEXT NOT NULL,at TEXT NOT NULL);
-        PRAGMA user_version=${SCHEMA_VERSION};`)
+        ${EXPERIMENT_SCHEMA}
+        PRAGMA user_version=${SCHEMA_VERSION}; COMMIT;`)
+      this.experimentStore = new ExperimentStore({
+        db: this.db,
+        pollMs: this.options.pollIntervalMs,
+        signal: this.managementAbort.signal,
+        binding: (providerId) => {
+          const d = this.providers.get(providerId)!.describe()
+          return {
+            version: d.version,
+            sha256: createHash('sha256')
+              .update(canonicalJson(d as unknown as Json))
+              .digest('hex'),
+          }
+        },
+        authorize: (context, providerId) => this.authorize(context, providerId),
+        transaction: (body) => this.transaction(body),
+        submit: (context, request, binding) => this.submitBound(context, request, binding),
+        get: (context, id) => this.get(context, id),
+        query: (context, id) => this.query(context, id),
+        cancel: (context, id) => this.cancel(context, id),
+        artifact: (context, id) => new Artifacts(this).read(context, id),
+      })
       for (const row of this.unfinished()) await this.refresh(row, 'recovery')
       this.ready = true
     } catch (error) {
@@ -114,6 +145,11 @@ export class ExecutionEngine {
     } finally {
       this.opening = false
     }
+  }
+  /** Experiment facts and bounded decisions share this engine's authority and transaction store. */
+  get experiments(): ExperimentAPI {
+    this.assertReady()
+    return this.experimentStore
   }
   private assertReady(): void {
     if (!this.ready || this.closing) throw new Error('Execution engine is not active')
@@ -305,6 +341,13 @@ export class ExecutionEngine {
   }
   /** Resource reservation, budget charge and registration commit together before any provider action. */
   submit(context: OperationContext, request: SubmitOperation): Promise<OperationRecord> {
+    return this.submitBound(context, request)
+  }
+  private submitBound(
+    context: OperationContext,
+    request: SubmitOperation,
+    binding?: ExperimentBinding,
+  ): Promise<OperationRecord> {
     this.authorize(context, request.providerId)
     if (!request.requestKey) throw new Error('Request key must be nonempty')
     const provider = this.providers.get(request.providerId)!
@@ -314,6 +357,17 @@ export class ExecutionEngine {
       .get(context.projectId, request.requestKey) as unknown as Row | undefined
     if (existing) {
       if (existing.request_json !== requestJson) throw new Error('Request key reused with different input')
+      if (binding) {
+        const linked = this.db
+          .prepare('SELECT experiment_id,action_id FROM experiment_steps WHERE operation_id=?')
+          .get(existing.id) as { experiment_id: string; action_id: string } | undefined
+        if (
+          !linked ||
+          linked.experiment_id !== binding.experimentId ||
+          linked.action_id !== binding.action.actionId
+        )
+          throw new Error('Request key belongs to another operation scope')
+      }
       return Promise.resolve(this.record(existing))
     }
     if (this.blockedProviders.has(request.providerId))
@@ -359,6 +413,7 @@ export class ExecutionEngine {
           at,
           at,
         )
+      if (binding) this.experimentStore.register(context, binding, prepared.budget, id)
       for (const resource of prepared.resources)
         this.db.prepare('INSERT INTO resources(name,operation_id) VALUES(?,?)').run(resource, id)
       this.db
@@ -437,6 +492,7 @@ export class ExecutionEngine {
         ? 'Provider reports not_found after durable registration; no automatic replay, resources remain held'
         : (observation.detail ?? null)
     const progressJson = observation.progress === undefined ? null : canonicalJson(observation.progress)
+    const priorArtifacts = this.record(row).artifacts
     this.transaction(() => {
       this.db
         .prepare('UPDATE operations SET state=?,progress_json=?,detail=?,updated_at=? WHERE id=?')
@@ -449,6 +505,13 @@ export class ExecutionEngine {
           .run(a.id, a.operationId, a.path, a.sha256, a.bytes, a.mediaType)
       if (TERMINAL.has(state)) this.db.prepare('DELETE FROM resources WHERE operation_id=?').run(row.id)
       this.event(row, source, { state, detail, artifacts: artifacts.map((a) => a.id) })
+      if (
+        row.state !== state ||
+        row.progress_json !== progressJson ||
+        row.detail !== detail ||
+        artifacts.some((a) => !priorArtifacts.some((p) => p.id === a.id))
+      )
+        this.experimentStore.observed(row.id, { state, detail, progress: observation.progress ?? null })
     })
   }
   private async refresh(row: Row, source: string): Promise<void> {

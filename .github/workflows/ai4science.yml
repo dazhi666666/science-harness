@@ -34,6 +34,8 @@ jobs:
         run: python3 integrations/ai4science/platform/setup.py
       - name: Infrastructure and retained regressions
         run: python3 integrations/ai4science/platform/check.py --output .ai4science/check
+      - name: Experiment feedback and restarted execution
+        run: python3 integrations/ai4science/platform/experiment-check.py --output .ai4science/experiment-check
       - name: Released session migration
         run: pnpm exec vitest run packages/session/session-persistence-jsonl/tests/v2-system-migration.spec.ts packages/session/session-persistence-jsonl/tests/v2-ptc-migration.spec.ts packages/session/session-persistence-jsonl/tests/migration-refusal.spec.ts --reporter=verbose
       - name: Independently installed external execution
@@ -47,6 +49,7 @@ jobs:
           name: ai4science-check
           path: |
             .ai4science/check
+            .ai4science/experiment-check
             .ai4science/external-check
             .ai4science/example-check
           if-no-files-found: warn

@@ -84,8 +84,8 @@ export class ScriptedModel extends LlmAdapter {
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const marker = options.messages
       .flatMap((message) => message.content)
-      .find((block) => block.type === 'text' && /^ACTOR [\w-]+$/.test(block.text))
-    const actor = marker?.type === 'text' ? marker.text.slice(6) : 'lead'
+      .find((block) => block.type === 'text' && /^ACTOR [\w-]+(?:\n|$)/.test(block.text))
+    const actor = marker?.type === 'text' ? marker.text.split('\n')[0]!.slice(6) : 'lead'
     this.requests.push({ actor, options })
     const step = this.scripts.get(actor)?.shift()
     // Parent settlement notices require no science action. Unscripted calls only acknowledge.

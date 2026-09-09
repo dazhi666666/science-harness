@@ -9,6 +9,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { openConfiguredEngine } from './config.ts'
 import { createOrganization, organizationSchema } from './organization.ts'
 import { installOrganizationTools } from './host-plugin.ts'
+import { installExperimentTools } from './experiment-tools.ts'
 import { Artifacts } from './artifacts.ts'
 import type { OperationContext, Json } from './sdk.ts'
 
@@ -95,6 +96,7 @@ export async function mountPlatform(ctx: Context, input: Config) {
       if (!agent.session.header.parentSession) org.registerRoot(agent, config.task)
     })
     installOrganizationTools(ctx, org)
+    installExperimentTools(ctx, engine, access)
     const register = (
       name: string,
       description: string,

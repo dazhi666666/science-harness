@@ -1,4 +1,4 @@
-# AI4Science 基础设施 v0.1
+# AI4Science 实验基础设施 v0.2
 
 ## 宿主与范围
 
@@ -13,6 +13,7 @@
 | 模型执行、Session、Agent inbox | 原生 Harness |
 | 角色配置、数量、工具、创建权限、任务关联 | `platform/organization.ts`；运行时只保存必要关联，任务事实写入执行库 |
 | 项目、请求、操作、资源、预算、结果元数据 | `platform/execution.ts` 中的 `execution.sqlite` |
+| 实验需求、操作关联、决策、评估与结束事实 | `platform/experiments.ts`，与操作共用 `execution.sqlite`；不创建会话或调度器 |
 | 单控制者互斥 | 独立 `controller.sqlite` 上的长期 SQLite 排他事务；不是第二套执行事实库 |
 | 实际设备动作与检查点 | Provider 自己的持久日志；验收独立检查实际 starts、samples 或 chunks |
 | 产物及来源 | `platform/artifacts.ts`；文件完整写入后，将大小、SHA256 和来源提交到执行库 |
@@ -50,7 +51,7 @@ Provider 将不可变结果写入 `artifactDirectory`。同一管理域的操作
 
 ## 提交、取消和恢复
 
-v0.1 的一次 run 对应一个操作，`runId === id`；场景可以关联多次运行，但核心没有隐藏的 DAG。
+一次 run 仍对应一个操作，`runId === id`。v0.2 新增独立 experimentId 关联多次操作；操作身份与 Provider 协议不变，不生成隐藏的 DAG。
 
 资源检查、预算预留和操作登记在同一 SQLite 事务中提交。实际设备动作发生在持久化 dispatch intent 之后，无法随数据库回滚。相同项目中的相同 requestKey 和输入跨重启返回原操作，输入变更被拒绝；换一个 key 是新请求。
 
@@ -68,9 +69,31 @@ Provider 已发布路径的内容或媒体类型变化会被拒绝，原哈希�
 
 设备域重新绑定、未知操作强制清除、恶意同进程插件隔离、模型内部思考恢复、分布式高可用、文件系统断电持久性和真实设备适配尚未支持或验证。具体本地验收结果见 [validation/v0.1.json](validation/v0.1.json)。
 
+## 实验需求与反馈闭环
+
+v0.2 的 `engine.experiments` 和 `experiment_*` 工具负责记录目标、领域方法及版本、声明输入产物、输出要求、预算、操作总数和有限的精确动作目录。具体采样条件、完整性判断和 Markdown 报告位于 `scenes/sampling.ts`；核心不理解 initial/followup、科研假设或统计判断。两个角色配置使用相同需求完成不同深度的真实宿主委派，原跨分支通信授权和默认拒绝范围不变。
+
+每次 action 包含稳定 requestKey、actionId、理由、历史 operationId/artifactId。新操作登记、实验关联和用量、项目预算及资源检查共用原 SQLite 事务，然后走既有派发机制。重复决定返回原操作；改变相同 key 的决定被拒绝。只有该实验已确认终态的操作及其完整来源链，或预先声明的输入产物，可以作为证据；要求执行证据的追加动作不能只引用初始输入或另一个实验的记录。
+
+创建时记录各 Provider 描述的版本与 SHA256，描述中的非秘密配置也参与计算。状态返回这些固定指纹；重启后变化会阻止新动作，恢复原配置或建立新实验才可继续。已有完成操作仍可读取。此核对不验证插件二进制或第三方科学方法代码，适配者仍有责任正确更新版本。
+
+实验 controller 是当前引擎签发的真实 OperationContext 对象，创建时获得控制；claim 不得替换另一个仍有效的对象。上下文撤销、Agent 关闭或宿主退出后，新获准执行者必须显式 claim；同 actorId 不继承权限。获准 worker 可以在 controller 有效时提交批准的动作，只有 controller 可以 resolve/finish/cancel。参与者目前须具备需求中所有 Provider 的访问范围；role tools 再约束可做的动作。实验权限在操作登记事务中再次核对；接纳后撤销 controller 会阻止新动作，不撤回或取消已接受操作。这不新增通用 ACL，也不恢复原跨分支父节点授权。
+
+受限 worker 不应同时获得 `execution_submit` 等直接操作工具；否则其原有 Provider 权限仍允许独立操作。SDK 和 CLI 是受信管理入口，不是恶意插件沙箱。CLI 对既有实验的写操作每次都以当前配置的操作者显式 claim 并记录原因；重复动作读取原结果不要求重建旧 controller。
+
+`experiment_wait` 由程序调用原 Provider query，并以持久序号返回变化。只有新状态、进展、详情或产物形成 observed 事件，未变化的轮询不伪装进展。等待超时写入事实并返回 timeout，既不取消操作，也不释放资源；工具被中断或插件关闭只停止观察。unknown 经核对仍无法确认时返回 blocked，不能推进新的实验动作。当前是有界程序轮询，不声称设备主动推送通知或自动重启后的 Agent 续思考。
+
+执行状态区分 running、awaiting_decision、needs_review、blocked、cancelling、cancelled、completed。escalate 保存越界提案并停止新接纳，不声称已停设备；controller 的 resolve 仅允许按原需求继续，修改需求须创建新实验。取消先持久记录请求，再逐项使用现有 cancel；只有全部已接受操作具有确认终态，聚合状态才是 cancelled，成功、失败和部分取消的原记录均保留。unknown 保留占用与预算；全额保守计费不退款。
+
+领域评估是带方法版本、理由和来源引用的数据，不是平台给出的科学真值。通用 finish 要求操作已结束、必需动作已执行、完成产物及其来源可读取；它不认证数据质量或科学结论。采样场景的 sampling_finish 额外检查自己的观测数量要求后生成执行报告。无产物的失败可通过取消/停止管理保留记录，不伪造成功报告。CLI 的 assessor 模块只能由受信操作者显式选择，模型工具不开放任意文件导入。
+
+执行库 schema 从 1 单调迁移到 2，新增实验三张关联表，创建事件复用原 events 表；迁移与版本更新同事务提交。旧 completed 操作、预算、哈希与数据关联保持原值且不重放。旧 v0.1 程序拒绝 schema 2，无降级器。已有操作级控制器锁仍唯一；实验 controller 只是当前管理进程内的动作权限，不替代设备控制锁。
+
+本轮不支持连续步骤之间的资源租约、任意参数重规划或通用实验编译器。需要跨步骤持续持有资源的动作应由单个 Provider 操作完整承接。跨分支仍仅传受约束结果引用和关联回复。新增实验接口没有扩展 dashboard，详情通过 CLI、工具或公开导出读取。实际验收见 [validation/experiments-v0.2.json](validation/experiments-v0.2.json)。
+
 ## 独立计算 Provider：不扩展 v0.1 内核
 
-`integrations/ai4science/external-job/` 增加一个可独立安装的固定计算插件。公开 SDK 仍来自原 `platform/sdk.ts` 和测试工具；只增加编译后的 ESM、类型声明和本地 tarball 交付形式。Provider 只导入公开 SDK、Node 内置模块及自身文件，现有组织、授权、通信、执行库及接口版本均未修改。
+`integrations/ai4science/external-job/` 增加一个可独立安装的固定计算插件。公开 SDK 仍来自原 `platform/sdk.ts` 和测试工具；只增加编译后的 ESM、类型声明和本地 tarball 交付形式。Provider 只导入公开 SDK、Node 内置模块及自身文件，该 Provider 接入不要求修改组织、授权、通信或 Provider 接口；后续 v0.2 实验关联仅升级平台执行库，不改变 Provider 协议。
 
 Provider 在设备侧 SQLite 事务中登记 operationId、随机 jobId、启动票据、不可变输入和产物目录，同时认领原有管理域。只有首次登记者启动固定的外部 supervisor；重复提交只读取原记录。登记后、真正启动前中断也不会自动重派。输入只有有限长度文本和受限迭代数，不提供任意脚本或 shell 接口。
 
