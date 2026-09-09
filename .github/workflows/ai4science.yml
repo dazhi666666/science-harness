@@ -42,14 +42,16 @@ jobs:
         run: python3 integrations/ai4science/external-job/check.py --output .ai4science/external-check
       - name: Copyable Provider example
         run: python3 integrations/ai4science/example-plugin/check.py --output .ai4science/example-check
+      - name: Stage deterministic test evidence without dependency links
+        if: always()
+        run: |
+          python3 integrations/ai4science/platform/collect-evidence-test.py
+          python3 integrations/ai4science/platform/collect-evidence.py --source .ai4science/check .ai4science/experiment-check .ai4science/external-check .ai4science/example-check --output "${{ runner.temp }}/ai4science-evidence"
       - name: Retain deterministic test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ai4science-check
-          path: |
-            .ai4science/check
-            .ai4science/experiment-check
-            .ai4science/external-check
-            .ai4science/example-check
+          path: ${{ runner.temp }}/ai4science-evidence
+          include-hidden-files: true
           if-no-files-found: warn
