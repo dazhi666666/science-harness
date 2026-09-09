@@ -1,0 +1,115 @@
+{
+  "date": "2026-09-09",
+  "baseCommit": "985696a5535ee63da1ea08cbd2cbd43d84682baa",
+  "status": "passed-focused-checks; repository doc-sync has pre-existing failures",
+  "entry": "/about on the existing loopback dashboard server",
+  "checks": {
+    "httpAndLifecycleTests": 2,
+    "platformTypecheck": "passed",
+    "introductionAnchors": "passed",
+    "readmeEnglish": "passed",
+    "browser": [
+      "1280px desktop flow inspected",
+      "390px mobile flow inspected; no horizontal overflow",
+      "mouse expands midbrain explanation",
+      "Enter collapses focused disclosure",
+      "workspace to introduction and introduction to workspace navigation",
+      "viewport override reset"
+    ]
+  },
+  "commands": [
+    "python3 integrations/ai4science/platform/manage.py --home .ai4science/dashboard-demo-02/home serve --port 8787 --refresh-ms 1000",
+    "pnpm exec vitest run --config integrations/ai4science/platform/vitest.config.ts integrations/ai4science/platform/dashboard.spec.ts --reporter=verbose",
+    "pnpm exec tsc --noEmit -p integrations/ai4science/platform/tsconfig.json",
+    "pnpm run doc-sync",
+    "git diff --check"
+  ],
+  "docSync": {
+    "passed": 28,
+    "failed": 6,
+    "baselineReproduction": "The same failure subjects were observed in a detached checkout of baseCommit using the same dependencies. No unrelated catalog or bilingual-source rewrite is included.",
+    "gates": [
+      {
+        "gate": "verify-md-links",
+        "command": [
+          "node",
+          "node_modules/tsx/dist/cli.mjs",
+          "scripts/verify-md-links.ts"
+        ],
+        "exitCode": 1
+      },
+      {
+        "gate": "verify-doc-graphs",
+        "command": [
+          "node",
+          "node_modules/tsx/dist/cli.mjs",
+          "scripts/gen-doc-graphs.ts",
+          "--check"
+        ],
+        "exitCode": 1
+      },
+      {
+        "gate": "verify-cordis-catalog",
+        "command": [
+          "node",
+          "node_modules/tsx/dist/cli.mjs",
+          "scripts/gen-cordis-catalog.ts",
+          "--check"
+        ],
+        "exitCode": 1
+      },
+      {
+        "gate": "verify-translation-pairing",
+        "command": [
+          "node",
+          "node_modules/tsx/dist/cli.mjs",
+          "scripts/verify-translation-pairing.ts"
+        ],
+        "exitCode": 1
+      },
+      {
+        "gate": "verify-export-jsdoc",
+        "command": [
+          "node",
+          "node_modules/tsx/dist/cli.mjs",
+          "scripts/verify-export-jsdoc.ts"
+        ],
+        "exitCode": 1
+      },
+      {
+        "gate": "verify-config-catalog",
+        "command": [
+          "node",
+          "node_modules/tsx/dist/cli.mjs",
+          "scripts/gen-config-catalog.ts",
+          "--check"
+        ],
+        "exitCode": 1
+      }
+    ],
+    "failureSubjects": [
+      "docs/event-producer-consumer.md stale",
+      "references to upstream workflow files omitted by the community repository",
+      "packages/extensions/tool-cordis/src/api-catalog.ts stale",
+      "README.md and README.zh.md do not match inherited README.i18n.yaml",
+      "five JSDoc omissions in the existing cross-branch extension",
+      "existing subagent config parameter lacks a plain named type reference"
+    ]
+  },
+  "notes": [
+    "Static HTML and CSS with native details disclosure; no new dependencies or script runtime.",
+    "Introduction exposes no project data; operational APIs still require existing authentication.",
+    "Diagram is conceptual and distinguishes future robotics and full scientific autonomy from implemented infrastructure.",
+    "Full infrastructure regression suite and real-model run were not repeated for this page change.",
+    "Public website hosting was not deployed; source is delivered through GitHub."
+  ],
+  "sourceSHA256": {
+    "README.md": "a28938a4a7f646d155c73fa90f222637a8c45f93fc5a3f595eb2fa2f106f86dc",
+    "integrations/ai4science/platform/dashboard.ts": "13bb6606d8210680a2b4de10333423271a7dfabc7c226b53486ae02e1b5f6d03",
+    "integrations/ai4science/platform/dashboard.spec.ts": "ad82b4fc23b623a3727b203550008d17fc5e789b3927a259f5ace538d5ddf194",
+    "integrations/ai4science/platform/dashboard/index.html": "b9101ae35c87c685015b79c44005acc6d981017b3f60e4a53664c90120c1a6cf",
+    "integrations/ai4science/platform/dashboard/style.css": "b6a4ba6b16822477a4e4f1ef8250f78ea1e4dca984f2a0824f91a33e04ff1fed",
+    "integrations/ai4science/platform/dashboard/about.html": "76bf964edfc0a0e500a8bf49f4000a635817b946a58bd9f5ae412248ea0ad5de",
+    "integrations/ai4science/platform/dashboard/about.css": "15640402dc52165b906e96102df03b3cef074357727beed90cb1f48ff018409e"
+  }
+}

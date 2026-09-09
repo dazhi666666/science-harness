@@ -1257,3 +1257,6 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+/* Shared navigation appearance for the static introduction link. */
+a.nav-item { text-decoration: none; }
