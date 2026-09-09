@@ -145,7 +145,7 @@ This is a short synchronous starter. It cannot interrupt an operation: completed
 
 A lightweight browser workspace provides project switching, execution status, budget usage, Provider details, run submission, cancellation requests, and verified artifact previews/downloads. It reads the existing execution journal and calls the existing execution APIs. No browser-side task engine or second database is introduced.
 
-The **About the project** link opens `/about`, an English introduction with an interactive three-layer research flowchart. It separates implemented infrastructure from the long-term research vision and links to the example plugin. This static page contains no project state and can be read without the workspace credential; execution APIs remain authenticated.
+The **About the project** link opens `/about`, an English introduction with a large animated architecture diagram. It illustrates configurable Agent organizations, three responsibility layers, authorized cross-branch collaboration, execution feedback, and state/evidence/policy across the layers. The conceptual walkthrough includes six selectable stages, node details, pause/play, an expanded view, and reduced-motion support; it never starts Agents or operations. It separates implemented infrastructure from the long-term research vision and links to the example plugin. This static page contains no project state and can be read without the workspace credential; execution APIs remain authenticated.
 
 After installing a management profile, start its dashboard:
 

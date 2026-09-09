@@ -54,9 +54,10 @@ it('serves real state, rejects foreign origins/callers/scopes, and exports only 
     const introduction = await fetch(app.url + '/about')
     expect(introduction.status).toBe(200)
     expect(introduction.headers.get('content-type')).toContain('text/html')
-    expect(await introduction.text()).toContain('CONCEPTUAL ARCHITECTURE')
+    expect(await introduction.text()).toContain('CONCEPTUAL WALKTHROUGH')
     expect((await fetch(app.url + '/about.css')).headers.get('content-type')).toContain('text/css')
-    expect((await get('/about.js')).status).toBe(404)
+    expect((await fetch(app.url + '/about.js')).headers.get('content-type')).toContain('text/javascript')
+    expect((await get('/unknown-asset.js')).status).toBe(404)
     expect((await fetch(app.url + '/api/state')).status).toBe(401)
     expect((await get('/api/state', { Origin: 'https://unrelated.example' })).status).toBe(403)
     const foreignHost = await new Promise<number | undefined>((resolve, reject) => {

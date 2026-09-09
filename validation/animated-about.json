@@ -1,0 +1,65 @@
+{
+  "date": "2026-09-09",
+  "baseCommit": "e97900f92fa2e9804e3ddbac82060c9c7a3fb596",
+  "status": "focused-checks-passed",
+  "sourceSynthesis": [
+    "Logical layers are responsibilities, not a fixed Agent topology.",
+    "Real parent-child delegation and bilateral cross-branch authorization.",
+    "Scientific, experiment and controller feedback have different responsibilities.",
+    "Physical and digital capabilities enter through plugins.",
+    "State, evidence and policy support all layers; richer future services are labelled as vision."
+  ],
+  "commands": [
+    "node --check integrations/ai4science/platform/dashboard/about.js",
+    "pnpm exec vitest run --config integrations/ai4science/platform/vitest.config.ts integrations/ai4science/platform/dashboard.spec.ts --reporter=verbose",
+    "pnpm exec tsc --noEmit -p integrations/ai4science/platform/tsconfig.json",
+    "pnpm run doc-sync",
+    "python3 integrations/ai4science/platform/manage.py --home .ai4science/dashboard-demo-02/home serve --port 8787 --refresh-ms 1000",
+    "git diff --check"
+  ],
+  "checks": {
+    "httpLifecycleTestsPassed": 2,
+    "typecheck": "passed",
+    "javascriptSyntax": "passed",
+    "uniqueIdsAndAnchors": "passed",
+    "nodeCount": 13,
+    "browser": [
+      "six manual stages select the matching description and pause autoplay",
+      "CSS dash offset unchanged across paused observations",
+      "autoplay resumes and changes stages and dash offset",
+      "SVG node keyboard activation selects description",
+      "expanded native dialog opens; Escape closes and restores focus",
+      "narrow viewport has no page overflow; diagram scrolls horizontally",
+      "desktop expanded layout inspected",
+      "no browser console errors observed",
+      "temporary viewport override reset"
+    ]
+  },
+  "docSync": {
+    "passed": 28,
+    "failed": 6,
+    "note": "Same failure subjects as validation/about-page.json, where the previous base was checked independently. The baseline check was not repeated in this change.",
+    "failedGates": [
+      "doc graphs",
+      "markdown links",
+      "cordis catalog",
+      "translation pairing",
+      "export jsdoc",
+      "config catalog"
+    ]
+  },
+  "unverified": [
+    "OS reduced-motion preference switching and background-tab suspension were implemented but not exercised in the browser.",
+    "No new real-model or full infrastructure acceptance run.",
+    "No public website hosting deployment."
+  ],
+  "executionEffects": "The animated module has no execution API calls. Motion is a conceptual walkthrough, not live telemetry.",
+  "sourceSHA256": {
+    "README.md": "34ae7788de23f6c95744453c86d7b3696022e04c3c624442064aa4d691ea6fbe",
+    "integrations/ai4science/platform/dashboard.ts": "7d1154a49b538a7bf8a995381f389f627264251bbef0cdf101517ed7f728f0fb",
+    "integrations/ai4science/platform/dashboard.spec.ts": "286df77f854df72896c741bb85cc768102006668fab1c64b1781aed2f05f0c34",
+    "integrations/ai4science/platform/dashboard/about.html": "46ae5b00e13d3b68349749530bde94546c1559f605e6fdece7834d4369f052c3",
+    "integrations/ai4science/platform/dashboard/about.css": "890b20eb4c1793f08e4287a607cc35703870590be85182ae9397179190d778ef",
+    "integrations/ai4science/platform/dashboard/about.js": "50f934c6a95f7b3c8f17e0672479a98b4fc5b332b9d6dba00ea7bbc6be2ba4a9"
+  }
+}
