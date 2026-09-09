@@ -83,3 +83,13 @@ python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-
 仓库内示例跟随当前版本；已经生成到仓库外的部署 JSON 不会被自动改写。将其中 baseline 显式改为新提交后，保留原设备目录、原任务身份和未完成操作所要求的 Provider 版本，再通过原 CLI 核对已有记录。不要将重启解释为重新授权，也不要因版本不匹配而清空占用。
 
 旧 first-loop 验证器仍认可已验收的原始基线/补丁组合，并会优先选择每个会话目录的最高 JSONL 版本。新运行的版本与补丁信息来自当前 UPSTREAM.json。升级后没有重新开展真实模型科研过程；当前证据包括确定性 Agent 集成、V2 子会话迁移、已有执行记录读取、独立计算插件和上游相关回归。
+
+## 通用插件入门示例
+
+新增 `integrations/ai4science/example-plugin/provider/` 作为可复制的入门包。`workload.mjs` 提供与具体学科无关的线性数据转换和输入校验；`index.mjs` 展示公开 Provider 接口、描述、资源与预算、稳定身份、独立持久记录和产物发布。`CUSTOMIZE HERE` 标出需要替换的部分，包内自带 Node 测试，不依赖平台测试私有接口。
+
+安装步骤见 [README](README.md#copyable-provider-example)。构建器复用现有 SDK 打包入口；生成两个可离线安装的包和配置示例。配置经原有注册路径加载，真实 CLI 可以提交、查询、取消和导出，不需要修改科研组织或核心代码。
+
+示例输入为 values、scale、offset。`[1,2,3]` 经 scale=2、offset=1 得到 `[3,5,7]`，同时保存 JSON、CSV 和 count/min/max/mean。预算按输入元素数计费。工作量限制为 10000 个数，属于短同步计算，不支持执行中断；取消接口明确返回 rejected 或 unsupported。未确认发布的操作保留 unknown，不自动重算。数据和状态完整性检查不能替代真实设备的取消、安全与恢复验证。
+
+复制后应同时调整输入 Schema、工作函数、结果格式、能力描述和对应测试。行为变化应更新 package.json 与 PROVIDER_VERSION，并明确新旧执行记录的兼容方式。不要仅更换函数而继续承诺原来的取消或恢复语义。现有独立执行示例仍用于长任务和真实进程退出验证。

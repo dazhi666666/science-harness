@@ -1,0 +1,67 @@
+{
+  "status": "passed-local",
+  "date": "2026-09-09",
+  "baseCommit": "fee03838befb3299d833bb56dd908a6a16401f8d",
+  "harnessBaseline": "5dda764ed3aa172535a7967b06ff95d9cbfe536a",
+  "package": "@ai4science/provider-example",
+  "version": "0.1.0",
+  "providerTests": 4,
+  "actualCommands": 14,
+  "standaloneTypes": "passed",
+  "installedOutsideRepository": true,
+  "workloadExecutionsAfterRetries": 1,
+  "coreModified": false,
+  "modelRequests": 0,
+  "githubCI": "not-run",
+  "example": {
+    "input": {
+      "values": [
+        1,
+        2,
+        3
+      ],
+      "scale": 2,
+      "offset": 1
+    },
+    "output": {
+      "values": [
+        3,
+        5,
+        7
+      ],
+      "summary": {
+        "count": 3,
+        "min": 3,
+        "max": 7,
+        "mean": 5
+      }
+    }
+  },
+  "commands": [
+    [
+      "python3",
+      "integrations/ai4science/example-plugin/check.py",
+      "--output",
+      ".ai4science/example-plugin-check-final"
+    ]
+  ],
+  "limits": [
+    "Short synchronous operation; no interruptible worker",
+    "Cancellation rejects completed work and reports unsupported for unknown work",
+    "Unknown publication is not replayed",
+    "Trusted local plugin, one management domain",
+    "No claim of real-device safety or long-running execution",
+    "License remains pending; local packages only"
+  ],
+  "sourceSHA256": {
+    "integrations/ai4science/example-plugin/build.py": "ad9ba0330fbdf2d58bfb0b271b5c67a7e29b0584bdb569aaf3bfb41dcbe62bc0",
+    "integrations/ai4science/example-plugin/check.py": "3aef1bd4918f6476c4bf437ac46576685b89bf0586be8202adcb61415b5cc9ae",
+    "integrations/ai4science/example-plugin/install.py": "b8065f07ceb912548fcf9307dc794e8cca9d9df3fe9e02caf7572f8b0ea8a028",
+    "integrations/ai4science/example-plugin/provider/LICENSE": "07ef5b6ae583050cd32bdcd0ea1ecd0522d5bb10cdf339f507de442eab553e69",
+    "integrations/ai4science/example-plugin/provider/package.json": "3a534c399d7fae79050bfc904b7e9298c8ee1179b721393eca612d3acc1aefd6",
+    "integrations/ai4science/example-plugin/provider/src/index.d.ts": "e6237c34fb5d907d516409284a50594b548ffa13a5f558f3c2cf9b4fc9155fb3",
+    "integrations/ai4science/example-plugin/provider/src/index.mjs": "fbc2fe2cd156478315d1b91daf2d852ffea9929eb316e384fc56b9d728cdccef",
+    "integrations/ai4science/example-plugin/provider/src/workload.mjs": "e185667218650a028db49ae3fb330bec645e6c19da25bd9fb57debb26b82b935",
+    "integrations/ai4science/example-plugin/provider/test/provider.test.mjs": "d4be21155523133bd91980e9efc8da03b6940079a532418c394a8f281731d00b"
+  }
+}

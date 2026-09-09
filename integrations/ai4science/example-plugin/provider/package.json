@@ -1,0 +1,12 @@
+{
+  "name": "@ai4science/provider-example",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {".": {"types": "./src/index.d.ts", "import": "./src/index.mjs"}},
+  "files": ["src", "test", "LICENSE"],
+  "scripts": {"test": "node --test test/*.test.mjs"},
+  "dependencies": {"@ai4science/provider-sdk": "0.1.0"},
+  "engines": {"node": "^22.19 || >=24"}
+}

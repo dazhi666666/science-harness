@@ -108,6 +108,39 @@ This check builds both packages, installs them offline in a clean external direc
 
 The supervisor owns a live worker handle; reconnecting clients never signal a PID loaded from disk. A durable job ID, launch ticket, operation mapping and OS-released ownership lock distinguish an active job from an uncertain one. Cancellation is recorded before it is acted on, and terminal results are published only after worker exit is observed. A startup deadline bounds unconfirmed launches. Supervisor loss, missing executables and uncertain launch outcomes do not cause automatic replay or resource release. Machine reboot, continuation after supervisor failure, Windows/Linux operation, physical devices and power-loss durability remain unverified or unsupported.
 
+## Copyable Provider Example
+
+Start with [provider-example](integrations/ai4science/example-plugin/provider/) when learning the plugin interface. It performs a small, domain-neutral transformation, `output = value * scale + offset`, and publishes JSON, CSV, and a summary. For input `[1, 2, 3]`, scale `2`, and offset `1`, the result is `[3, 5, 7]` with mean `5`.
+
+```sh
+python3 integrations/ai4science/example-plugin/build.py --output .ai4science/example-packages
+python3 integrations/ai4science/example-plugin/install.py --packages .ai4science/example-packages --directory .ai4science/example-plugin
+python3 integrations/ai4science/platform/install.py --home .ai4science/example-home --config .ai4science/example-plugin/config.json
+python3 integrations/ai4science/platform/manage.py --home .ai4science/example-home create --project example-plugin --budget 20
+python3 integrations/ai4science/platform/manage.py --home .ai4science/example-home start --project example-plugin --provider example --key example-1 --input .ai4science/example-plugin/input.json
+```
+
+Use fresh build and installation directories. The example and SDK install as separate packages; the Provider imports no platform internals or research scenario. It uses the existing management commands for query, cancel and export.
+
+To create your own adapter, copy the `provider/` directory, change its package name, and follow the `CUSTOMIZE HERE` comments:
+
+| File | What to adapt |
+|---|---|
+| [workload.mjs](integrations/ai4science/example-plugin/provider/src/workload.mjs) | Input Schema, validation and business computation. |
+| [index.mjs](integrations/ai4science/example-plugin/provider/src/index.mjs) | Capability description, resource/budget requirements, artifact formats and supported lifecycle semantics. |
+| [provider.test.mjs](integrations/ai4science/example-plugin/provider/test/provider.test.mjs) | Expected outputs and checks for identity, deduplication, failed publication and cancellation. |
+| [package.json](integrations/ai4science/example-plugin/provider/package.json) | Package identity and version; update `PROVIDER_VERSION` alongside behavior changes. |
+
+The tests travel with the package and run with `node --test test/provider.test.mjs` after installation. A version change requires a compatible journal strategy; this example rejects a changed persisted configuration rather than silently reusing records under different behavior.
+
+```sh
+python3 integrations/ai4science/example-plugin/check.py --output .ai4science/example-check
+```
+
+This checks the installed package outside the repository, then uses the actual platform CLI to submit, query, deduplicate and export a result. Provider-side execution records confirm that retries do not redo the computation.
+
+This is a short synchronous starter. It cannot interrupt an operation: completed work rejects cancellation, and unconfirmed work reports unsupported cancellation while retaining its unknown state. It does not simulate cancellation or recovery success. For independently running or interruptible jobs, use the existing [local-job example](integrations/ai4science/external-job/provider/) and validate that lifecycle separately. No core API, organization policy or execution framework is added by this example.
+
 ## Development Entry Points
 
 | Development task | Entry point |

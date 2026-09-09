@@ -38,6 +38,8 @@ jobs:
         run: pnpm exec vitest run packages/session/session-persistence-jsonl/tests/v2-system-migration.spec.ts packages/session/session-persistence-jsonl/tests/v2-ptc-migration.spec.ts packages/session/session-persistence-jsonl/tests/migration-refusal.spec.ts --reporter=verbose
       - name: Independently installed external execution
         run: python3 integrations/ai4science/external-job/check.py --output .ai4science/external-check
+      - name: Copyable Provider example
+        run: python3 integrations/ai4science/example-plugin/check.py --output .ai4science/example-check
       - name: Retain deterministic test evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -46,4 +48,5 @@ jobs:
           path: |
             .ai4science/check
             .ai4science/external-check
+            .ai4science/example-check
           if-no-files-found: warn
