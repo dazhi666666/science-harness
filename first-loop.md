@@ -52,3 +52,26 @@ python3 integrations/ai4science/platform/check.py --output .ai4science/check-01
 此命令运行 36 项基础设施测试及 237 项保留回归，并启动真实 CLI 完成 29 条命令和 25 项断言。CLI 输出包括 Provider 独立动作日志，以确认去重没有仅停留在平台日志。新增代码或条件不同可能改变测试数量，应以实际输出为准。
 
 原版本的本地安装、独立解压、类型检查、273 项测试和 CLI 检查均已通过，摘要见 [validation/v0.1.json](validation/v0.1.json)。本次整理后的执行结果单独记在 [validation/community.json](validation/community.json)，不混淆旧证据与新验证。GitHub 托管 CI 尚未运行。完整故障矩阵、真实硬件和多操作系统验收不作为当前已通过的事实。
+
+<a id="external-local-job"></a>
+
+## 独立计算插件
+
+按 [README 的独立执行步骤](README.md#independently-running-execution-plugin) 构建并安装两个本地包，生成的 `config.json` 指向安装目录中的 Provider。安装器核对 tarball 哈希，离线安装，禁用 npm 安装脚本；不复制插件源码进平台目录。SDK 与 Provider 尚未发布至公共包注册表。
+
+参数为 `text` 和 `iterations`；安装器生成一个 2,000,000 次迭代的示例。每次迭代消耗一个预算单位。`chunkSize` 决定每次上报的计算量，`pollMs` 决定 supervisor 检查取消请求的间隔，`startupTimeoutMs` 决定没有确认启动时等待多久后报告未知。计算不靠这些查询或取消轮询推进。
+
+提交命令退出后，已接受的任务继续运行。使用原命令入口和返回的实际 ID 操作：
+
+```sh
+python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-home query --project external --operation OPERATION_ID
+python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-home cancel --project external --operation OPERATION_ID
+python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-home wait --project external --operation OPERATION_ID --timeout-ms 30000
+python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-home export --project external --artifact ARTIFACT_ID --target .ai4science/external-result.json
+```
+
+这些大写 ID 是占位符，替换为实际输出。query 返回 progress 中的稳定 jobId、迭代数、取消标记和已观察到的退出码/信号。结果包括 `digest.json`、`execution.json`、`execution.log`；设备侧 `jobs.sqlite` 独立记录真实 worker 启动和检查点。`progress.diagnosticLog` 指向设备目录中的启动诊断日志，程序缺失等问题会保留在其中。
+
+首次启动有界等待后仍无法确认、监督进程死亡或查询失败时，平台保留 unknown 与占用；不能通过重新提交同一 key 启动另一份任务。取消请求不等于终止确认。永久未知情况需要人工核对，不提供强制成功或自动清空资源入口。普通 Harness 关闭不取消外部工作，但操作系统重启、supervisor 崩溃后的续算及真实设备尚未支持或验证。
+
+`external-job/check.py` 在源码目录外安装两个包，使用独立 Python 实现复算哈希结果；在没有 Provider 查询的间隔检查设备进度；验证宿主 SIGKILL 后的原操作找回、丢失回复、并发重复提交、无关项目及失效上下文、监督进程死亡、可执行文件缺失和实际取消。脚本 Agent 还会通过原平台工具完成提交、等待、读取与结束。完整日志保存到指定输出目录，不提交个人路径和设备数据库到公共源码仓库。

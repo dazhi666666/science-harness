@@ -67,3 +67,15 @@ Provider 调用超时会记录 unknown，但底层调用可能仍在执行。关
 Provider 已发布路径的内容或媒体类型变化会被拒绝，原哈希不会被替换，操作进入 unknown。读取和导出复核哈希；衍生产物递归核对来源访问权限。报告的统计推理正确性不属于基础设施检查。
 
 设备域重新绑定、未知操作强制清除、恶意同进程插件隔离、模型内部思考恢复、分布式高可用、文件系统断电持久性和真实设备适配尚未支持或验证。具体本地验收结果见 [validation/v0.1.json](validation/v0.1.json)。
+
+## 独立计算 Provider：不扩展 v0.1 内核
+
+`integrations/ai4science/external-job/` 增加一个可独立安装的固定计算插件。公开 SDK 仍来自原 `platform/sdk.ts` 和测试工具；只增加编译后的 ESM、类型声明和本地 tarball 交付形式。Provider 只导入公开 SDK、Node 内置模块及自身文件，现有组织、授权、通信、执行库及接口版本均未修改。
+
+Provider 在设备侧 SQLite 事务中登记 operationId、随机 jobId、启动票据、不可变输入和产物目录，同时认领原有管理域。只有首次登记者启动固定的外部 supervisor；重复提交只读取原记录。登记后、真正启动前中断也不会自动重派。输入只有有限长度文本和受限迭代数，不提供任意脚本或 shell 接口。
+
+supervisor 独立于 Harness 存活，持有本作业的 SQLite 排他所有权锁，并创建固定计算 worker。worker 自行推进哈希链，通过 IPC 提交进展；supervisor 保存独立的实际启动、检查点和退出记录。`query` 不推进计算。PID 仅是诊断信息，重连客户端不能凭它实施取消；客户端写入持久取消请求，supervisor 只操作自己仍持有的 ChildProcess，观察实际退出后才发布终态、部分结果或成功产物。已经成功的工作不会因稍后的取消被改写。
+
+启动期限内的 accepted 表示设备侧登记已接受，不代表 worker 已经开始。超过启动期限仍无有效所有者，或运行中的 supervisor 失效时，查询返回 unknown。已有占用和预算继续保留。supervisor 的 IPC 连接断开后，worker 会退出；该路径仍保留 unknown，因为不存在一个可信 supervisor 来确认终态。没有 OS 重启续算或 supervisor 崩溃自动恢复。设备日志或产物发布失败也不得伪造成功。
+
+工作进程继承经过限定的系统环境，不接收模型凭据或可配置执行命令。外部插件仍属于受信本地代码；本轮不提供恶意插件沙箱或分布式作业服务。使用的计算算法保持固定，这次验收不评价科研结论。发布说明和本地结果摘要见 `validation/external-job.json`。

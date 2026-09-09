@@ -83,6 +83,31 @@ The setup script installs dependencies from the two existing lockfiles, compiles
 - Use two independent reference Providers: a shared simulated instrument and a hash computation that continues in chunks. Independent device journals record actual execution to detect duplicate actions.
 - Wait in program code, request cancellation, reconcile after restart, verify result integrity, and export artifacts. Keep the original first-loop research scenario as an example application.
 
+## Independently Running Execution Plugin
+
+The optional [local-job Provider](integrations/ai4science/external-job/provider/src/index.mjs) runs a fixed SHA256 computation in an external worker, supervised independently of Harness. Accepted work continues when the submitting CLI exits or stops querying. A new authorized controller can find the original job, inspect its actual progress and exit state, request cancellation, and export its results.
+
+The Provider and its public SDK are delivered as separate local installation packages. The SDK is compiled from the existing public interface; no organization, communication, execution-core, or SDK protocol changes are required. The packages use plain ESM and declarations, and installation is verified outside the source checkout. They are local development artifacts, not npm registry releases; licensing remains pending.
+
+```sh
+python3 integrations/ai4science/external-job/build.py --output .ai4science/local-job-packages
+python3 integrations/ai4science/external-job/install.py --packages .ai4science/local-job-packages --directory .ai4science/local-job
+python3 integrations/ai4science/platform/install.py --home .ai4science/local-job-home --config .ai4science/local-job/config.json
+python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-home create --project external --budget 20000000
+python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-home start --project external --provider local-job --key job-1 --input .ai4science/local-job/input.json
+python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-home status --project external
+```
+
+Build and installation directories must be new. The generated deployment JSON is editable, and the installed Provider module is loaded through the existing public registration path. Use the returned operation ID with the existing `query`, `wait`, `cancel`, and `export` commands; see [the operating guide](first-loop.md#external-local-job).
+
+```sh
+python3 integrations/ai4science/external-job/check.py --output .ai4science/external-check --regressions
+```
+
+This check builds both packages, installs them offline in a clean external directory, verifies standalone TypeScript declarations, runs actual CLI operations, injects process failures, exercises a scripted Agent through platform tools, and optionally runs retained v0.1 regressions. It makes no real-model requests.
+
+The supervisor owns a live worker handle; reconnecting clients never signal a PID loaded from disk. A durable job ID, launch ticket, operation mapping and OS-released ownership lock distinguish an active job from an uncertain one. Cancellation is recorded before it is acted on, and terminal results are published only after worker exit is observed. A startup deadline bounds unconfirmed launches. Supervisor loss, missing executables and uncertain launch outcomes do not cause automatic replay or resource release. Machine reboot, continuation after supervisor failure, Windows/Linux operation, physical devices and power-loss durability remain unverified or unsupported.
+
 ## Development Entry Points
 
 | Development task | Entry point |

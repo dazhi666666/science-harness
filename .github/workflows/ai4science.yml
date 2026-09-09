@@ -36,10 +36,14 @@ jobs:
         run: python3 integrations/ai4science/platform/setup.py
       - name: Infrastructure and retained regressions
         run: python3 integrations/ai4science/platform/check.py --output .ai4science/check
+      - name: Independently installed external execution
+        run: python3 integrations/ai4science/external-job/check.py --output .ai4science/external-check
       - name: Retain deterministic test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ai4science-check
-          path: .ai4science/check
+          path: |
+            .ai4science/check
+            .ai4science/external-check
           if-no-files-found: warn
