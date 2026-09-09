@@ -4,9 +4,9 @@ AI4Science Harness is a small, plugin-oriented foundation for scientific Agent o
 
 The repository is intended for community development. A Provider can implement the public `describe / prepare / submit / query / cancel` interface and register through configuration without changing the execution core. The reference integrations include a simulated instrument and a resumable long-running computation. The original first-loop research scenario remains an example application rather than a platform rule.
 
-This release targets one trusted management domain on one machine. It does not claim physical-device safety, distributed high availability, multi-tenant isolation, model-thought recovery, or scientific correctness of model-authored reports. The upstream Harness baseline and local host changes are recorded in [UPSTREAM.json](UPSTREAM.json). The license for new AI4Science additions is still pending project-owner selection; upstream Harness and third-party components retain their existing licenses.
+This release targets one trusted management domain on one machine. It does not claim physical-device safety, distributed high availability, multi-tenant isolation, model-thought recovery, or scientific correctness of model-authored reports. The upstream Harness baseline and local host changes are recorded in [UPSTREAM.json](UPSTREAM.json).
 
-**The license for the AI4Science additions has not yet been selected. These additions are not presented as released under an open-source license.** Harness and third-party components retain their existing licenses. Local validation records do not establish the status of GitHub-hosted CI.
+**No license. Free to use.** You may freely use, copy, modify, and redistribute the original AI4Science additions. This permission does not replace the existing licenses and copyright notices of upstream Harness or third-party components. Local validation records do not establish the status of GitHub-hosted CI.
 
 ## Project Vision
 
@@ -87,7 +87,7 @@ The setup script installs dependencies from the two existing lockfiles, builds t
 
 The optional [local-job Provider](integrations/ai4science/external-job/provider/src/index.mjs) runs a fixed SHA256 computation in an external worker, supervised independently of Harness. Accepted work continues when the submitting CLI exits or stops querying. A new authorized controller can find the original job, inspect its actual progress and exit state, request cancellation, and export its results.
 
-The Provider and its public SDK are delivered as separate local installation packages. The SDK is compiled from the existing public interface; no organization, communication, execution-core, or SDK protocol changes are required. The packages use plain ESM and declarations, and installation is verified outside the source checkout. They are local development artifacts, not npm registry releases; licensing remains pending.
+The Provider and its public SDK are delivered as separate local installation packages. The SDK is compiled from the existing public interface; no organization, communication, execution-core, or SDK protocol changes are required. The packages use plain ESM and declarations, and installation is verified outside the source checkout. They are local development artifacts, not npm registry releases. The usage permission below applies to the original AI4Science additions.
 
 ```sh
 python3 integrations/ai4science/external-job/build.py --output .ai4science/local-job-packages
@@ -204,7 +204,7 @@ An `unknown` operation retains its resources and budget and is never automatical
 
 The Harness baseline is pinned to `5dda764ed3aa172535a7967b06ff95d9cbfe536a` (`0.1.5-alpha.1`). The host is modified: the repository source already includes the [complete host patch](patches/harness-ai4science-v0.1.patch). Do not apply it again. [UPSTREAM.json](UPSTREAM.json) records the baseline, affected files, and patch hash.
 
-The upstream MIT license and DeepSeek copyright notice remain in [LICENSE](LICENSE). Third-party licenses remain in their component directories. The license status of the new AI4Science code is recorded in [integrations/ai4science/LICENSE](integrations/ai4science/LICENSE) and must be decided by the project owner before a formal release.
+The upstream MIT license and DeepSeek copyright notice remain in [LICENSE](LICENSE). Third-party licenses remain in their component directories. The original AI4Science additions are provided with **no license** and are free to use, copy, modify, and redistribute. See the [usage statement](integrations/ai4science/LICENSE). Upstream and third-party license requirements continue to apply to their respective code.
 
 ## Following Harness Upstream
 
