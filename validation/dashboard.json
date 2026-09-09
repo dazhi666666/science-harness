@@ -1,0 +1,69 @@
+{
+  "status": "passed-local",
+  "date": "2026-09-09",
+  "baseCommit": "47663d05c844ab4ce679be336cd4eac236408c37",
+  "tests": {
+    "httpAndLifecycle": 2,
+    "platformAndRetainedRegressionsTotal": 294,
+    "cliCommands": 29,
+    "cliAssertions": 25
+  },
+  "browserChecks": [
+    "actual simulated acquisition submitted through the page",
+    "run details and integrity-checked JSON preview",
+    "cancellation request followed by observed cancelled state and partial result",
+    "configured project creation and empty state",
+    "provider capability view",
+    "native HTTP artifact download event observed",
+    "fresh launch-link reconnection",
+    "desktop and compact layouts inspected",
+    "mobile viewport inspected with no horizontal overflow"
+  ],
+  "auth": "loopback-only; exact Host/Origin; per-run bearer for API control; separate HttpOnly SameSite download-only cookie",
+  "coreStateOwner": "existing ExecutionEngine and Artifacts; no second database or Agent runtime",
+  "demo": "real executions on synthetic Providers, not invented production rows",
+  "modelRequests": 0,
+  "githubCI": "not-run",
+  "commands": [
+    [
+      "python3",
+      "integrations/ai4science/platform/check.py",
+      "--output",
+      ".ai4science/dashboard-regressions"
+    ],
+    [
+      "python3",
+      "integrations/ai4science/platform/dashboard-demo.py",
+      "--directory",
+      ".ai4science/dashboard-demo-02"
+    ],
+    [
+      "python3",
+      "integrations/ai4science/platform/manage.py",
+      "--home",
+      ".ai4science/dashboard-demo-02/home",
+      "serve",
+      "--port",
+      "8787",
+      "--refresh-ms",
+      "1000"
+    ]
+  ],
+  "limits": [
+    "local trusted operator only; not a remote multi-user deployment",
+    "one active controller per execution domain",
+    "closing browser does not stop management or equipment",
+    "unknown work requires explicit reconciliation",
+    "browser artifact limit 16 MiB; request limit 1 MiB",
+    "Linux/Windows UI deployment and remote hosting unverified"
+  ],
+  "sourceSHA256": {
+    "integrations/ai4science/platform/dashboard.ts": "e6e968b5b83060b9afabe41a6a8a4a1655d619a672357a950db4691c6ea4d507",
+    "integrations/ai4science/platform/dashboard.spec.ts": "e9eae3aa9b1c123e2d812ad3b57e5edba1cb75ba89aa0c24730402d935071a7c",
+    "integrations/ai4science/platform/dashboard-demo.py": "a43fede502fce7f61a979bc78979702680f611926c964dfcf7be679781a039c2",
+    "integrations/ai4science/platform/cli.ts": "08c1ffbbdec260fc08f61f40950a8bad2ffe693701f02a02454edf3e85cd5372",
+    "integrations/ai4science/platform/dashboard/index.html": "7b6dfe2a63c260bdabc688b0f144be5fc8e075d29cf58312de0749007af64337",
+    "integrations/ai4science/platform/dashboard/style.css": "a99f1bb93fd651af9ae4eb208e34533c053fa4e3e90589f424f32e833ea72940",
+    "integrations/ai4science/platform/dashboard/app.js": "912d486cf1bedd5a20ade9d8fc7aaa952ccf9c3a611f105e1ce55e6c3764d6c7"
+  }
+}

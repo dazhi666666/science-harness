@@ -93,3 +93,11 @@ python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-
 示例输入为 values、scale、offset。`[1,2,3]` 经 scale=2、offset=1 得到 `[3,5,7]`，同时保存 JSON、CSV 和 count/min/max/mean。预算按输入元素数计费。工作量限制为 10000 个数，属于短同步计算，不支持执行中断；取消接口明确返回 rejected 或 unsupported。未确认发布的操作保留 unknown，不自动重算。数据和状态完整性检查不能替代真实设备的取消、安全与恢复验证。
 
 复制后应同时调整输入 Schema、工作函数、结果格式、能力描述和对应测试。行为变化应更新 package.json 与 PROVIDER_VERSION，并明确新旧执行记录的兼容方式。不要仅更换函数而继续承诺原来的取消或恢复语义。现有独立执行示例仍用于长任务和真实进程退出验证。
+
+## 本地前端页面
+
+已有 management profile 可通过 `python3 integrations/ai4science/platform/manage.py --home .ai4science/home serve --port 8787` 打开操作台。使用终端输出的本次启动链接进入，不分享其中的访问凭据。重启服务后需要新链接，旧凭据失效。页面支持项目切换、创建配置允许的项目、提交 JSON 输入、查看运行详情、请求取消、核对状态和预览/下载结果。
+
+示例页面可先运行 `platform/dashboard-demo.py --directory .ai4science/dashboard-demo`，再以该目录的 home 启动 serve。演示数据由模拟仪器和计算 Provider 实际执行生成，保留原始数据和取消结果；不是伪造生产指标。浏览器关闭不会停止服务，Ctrl+C 才停止本次管理，且不会因此取消独立外部任务。
+
+服务运行时占用同一执行域的控制锁，另一个 CLI 不能同时接管该域。未知操作仍保留资源和预算；页面没有强制成功或清空占用按钮。预览和下载上限为 16 MiB，大结果应在停止操作台后用原 CLI 导出。前端不评估科研结论，也不增加 Agent Runtime、消息服务或工作流引擎。

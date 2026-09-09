@@ -9,6 +9,7 @@ import { openConfiguredEngine } from './config.ts'
 import type { ExecutionEngine } from './execution.ts'
 import type { Json } from './sdk.ts'
 import { Artifacts } from './artifacts.ts'
+import { startDashboard } from './dashboard.ts'
 
 export const name = 'ai4science-management'
 export const inject = ['cmdlineArgs', 'appReady', 'appExit']
@@ -30,6 +31,7 @@ const help = `AI4Science infrastructure v0.1 — dsh --profile ai4science <comma
   export    --project ID --artifact ID --target FILE
   reconcile --project ID
   stop      --project ID
+  serve     [--port NUMBER --refresh-ms NUMBER]
 Each invocation opens the same durable domain, reconciles unfinished operations, then closes its controller.
 stop closes management only. It does not cancel or prove that a device has stopped.
 Cancellation is a request; inspect the returned observed operation state.
@@ -93,6 +95,8 @@ async function execute(
       operation: { type: 'string' },
       artifact: { type: 'string' },
       target: { type: 'string' },
+      port: { type: 'string' },
+      'refresh-ms': { type: 'string' },
     },
   })
   if (values.help || args.length === 0) {
@@ -112,6 +116,7 @@ async function execute(
     'export',
     'reconcile',
     'stop',
+    'serve',
   ]
   const command = positionals[0]
   if (positionals.length !== 1 || command === undefined || !commands.includes(command))
@@ -121,12 +126,25 @@ async function execute(
     if (typeof value !== 'string' || !value) throw new Error(`Missing --${key}`)
     return value
   }
-  const project = required('project')
+  const project = command === 'serve' ? undefined : required('project')
   const { engine, config } = await openConfiguredEngine(configPath)
   opened(engine)
   try {
     signal.throwIfAborted()
-    if (!config.management.projects.includes(project))
+    if (command === 'serve') {
+      const dashboard = await startDashboard(engine, config, {
+        port: values.port === undefined ? 8787 : Number(values.port),
+        refreshMs: values['refresh-ms'] === undefined ? 1000 : Number(values['refresh-ms']),
+        signal,
+      })
+      process.stdout.write(
+        JSON.stringify({ url: dashboard.launchUrl, mode: 'local-dashboard', deviceStopOnClose: false }) +
+          '\n',
+      )
+      await dashboard.closed
+      return
+    }
+    if (project === undefined || !config.management.projects.includes(project))
       throw new Error('Project is outside configured management scope')
     if (command === 'create') {
       const budget = Number(required('budget'))

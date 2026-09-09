@@ -141,6 +141,31 @@ This checks the installed package outside the repository, then uses the actual p
 
 This is a short synchronous starter. It cannot interrupt an operation: completed work rejects cancellation, and unconfirmed work reports unsupported cancellation while retaining its unknown state. It does not simulate cancellation or recovery success. For independently running or interruptible jobs, use the existing [local-job example](integrations/ai4science/external-job/provider/) and validate that lifecycle separately. No core API, organization policy or execution framework is added by this example.
 
+## Local Dashboard
+
+A lightweight browser workspace provides project switching, execution status, budget usage, Provider details, run submission, cancellation requests, and verified artifact previews/downloads. It reads the existing execution journal and calls the existing execution APIs. No browser-side task engine or second database is introduced.
+
+After installing a management profile, start its dashboard:
+
+```sh
+python3 integrations/ai4science/platform/manage.py --home .ai4science/home serve --port 8787
+```
+
+Open the launch link printed by the command. The server binds only to `127.0.0.1` and generates fresh access credentials for each run. Do not share the launch link. Control API requests require its bearer credential; an HttpOnly, same-site session cookie is accepted only for native artifact downloads. Project and Provider permissions remain those in the management configuration. This is a local operator interface, not a multi-user or publicly hosted service.
+
+For a fresh demonstration backed by actual simulated operations:
+
+```sh
+python3 integrations/ai4science/platform/dashboard-demo.py --directory .ai4science/dashboard-demo
+python3 integrations/ai4science/platform/manage.py --home .ai4science/dashboard-demo/home serve --port 8787
+```
+
+The demo creates completed measurements, computation results, a cancelled operation and a running computation through the CLI. These are real executions of synthetic Providers, not invented dashboard rows. Use a new demo directory each time.
+
+The server holds the existing single-controller lock while running, so use its interface or stop it before opening another CLI controller for the same domain. Background monitoring queries active operations independently of page refresh; unknown operations require explicit reconciliation. Closing the browser does not stop management. Ctrl+C stops the server and management, without claiming that equipment has stopped. Independent external jobs retain their own lifecycle.
+
+`--refresh-ms` sets the server's monitoring interval (100–60000 ms; default 1000). Browser preview/download is limited to 16 MiB per artifact; use the CLI for larger files. Input requests are limited to 1 MiB. The interface includes loading, empty, error and responsive layouts. See [dashboard.ts](integrations/ai4science/platform/dashboard.ts) for the adapter and [dashboard/](integrations/ai4science/platform/dashboard/) for the dependency-free frontend.
+
 ## Development Entry Points
 
 | Development task | Entry point |
