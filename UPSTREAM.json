@@ -2,20 +2,26 @@
   "project": "AI4Science",
   "platformVersion": "0.1.0",
   "upstreamRepository": "https://github.com/deepseek-ai/deepseek-harness",
-  "upstreamCommit": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
+  "upstreamCommit": "5dda764ed3aa172535a7967b06ff95d9cbfe536a",
   "upstreamLicense": "MIT",
   "ai4scienceLicense": "pending",
   "hostModified": true,
   "patchAlreadyApplied": true,
   "hostPatch": "patches/harness-ai4science-v0.1.patch",
-  "hostPatchSHA256": "e039369125d135ffcdb28c4fe315dc6d1d228a7f0e80d862b775b26c76f9adf2",
+  "hostPatchSHA256": "ae184e93b7c2cc90133ec8f96cfb3dc7b6efdabe3b83023b68a3051781968883",
   "hostFiles": [
+    "package.json",
     "packages/subagent/subagent/src/index.ts",
     "packages/subagent/subagent/src/continuation.ts",
     "packages/subagent/subagent/src/science-results.ts",
+    "packages/subagent/subagent/src/continuation-activation.ts",
     "packages/subagent/subagent/package.json",
     "packages/subagent/subagent/tsconfig.json",
     "pnpm-lock.yaml"
   ],
-  "priorDeliverySHA256": "d0c87b92af070630a352aecb3b7f4fb2ad1428bf6746e23cad1a5157df5c738b"
+  "priorDeliverySHA256": "d0c87b92af070630a352aecb3b7f4fb2ad1428bf6746e23cad1a5157df5c738b",
+  "previousUpstreamCommit": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
+  "upstreamBranch": "master",
+  "upstreamVersion": "0.1.5-alpha.1",
+  "validation": "validation/upstream-0.1.5.json"
 }

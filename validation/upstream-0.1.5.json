@@ -1,0 +1,83 @@
+{
+  "status": "passed-local",
+  "date": "2026-09-09",
+  "previousUpstreamCommit": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
+  "upstreamCommit": "5dda764ed3aa172535a7967b06ff95d9cbfe536a",
+  "upstreamVersion": "0.1.5-alpha.1",
+  "upstreamBranch": "master",
+  "upstreamNewCommits": 879,
+  "hostPatchSHA256": "ae184e93b7c2cc90133ec8f96cfb3dc7b6efdabe3b83023b68a3051781968883",
+  "hostModified": true,
+  "tests": {
+    "platform": 38,
+    "crossBranch": 13,
+    "minimal": 5,
+    "teams": 5,
+    "firstLoopBoundaries": 20,
+    "upstreamSubagentAndTeam": 211,
+    "upstreamSessionMigration": 43,
+    "externalJob": 5,
+    "total": 340
+  },
+  "cli": {
+    "platformCommands": 29,
+    "platformAssertions": 25,
+    "externalCommands": 15,
+    "externalAssertions": 11
+  },
+  "upgradeChecks": {
+    "nativeV2ChildColdResume": "passed",
+    "predecessorBytesPreserved": true,
+    "oldGrantsRestored": false,
+    "existingOperationsRead": 2,
+    "existingArtifactsRead": 6,
+    "existingBudgetsAndHashesUnchanged": true,
+    "historicalRealRunEvidenceVerifier": "passed without rerunning model",
+    "upstreamPreparationMainUnchanged": "passed with isolated Git fixture"
+  },
+  "externalProviderVersion": "0.1.1",
+  "providerFix": "Bounded SQLite wait for the supervisor bootstrap settings read, following an observed concurrent-open failure",
+  "modelRequests": 0,
+  "githubCI": "not-run",
+  "commands": [
+    [
+      "python3",
+      "integrations/ai4science/platform/setup.py"
+    ],
+    [
+      "python3",
+      "integrations/ai4science/platform/check.py",
+      "--output",
+      ".ai4science/upstream-platform-final"
+    ],
+    [
+      "python3",
+      "integrations/ai4science/external-job/check.py",
+      "--output",
+      ".ai4science/upstream-external-02"
+    ],
+    [
+      "pnpm",
+      "exec",
+      "vitest",
+      "run",
+      "packages/session/session-persistence-jsonl/tests/v2-system-migration.spec.ts",
+      "packages/session/session-persistence-jsonl/tests/v2-ptc-migration.spec.ts",
+      "packages/session/session-persistence-jsonl/tests/migration-refusal.spec.ts",
+      "--reporter=verbose"
+    ],
+    [
+      "python3",
+      "integrations/ai4science/platform/upstream.py",
+      "check"
+    ]
+  ],
+  "limits": [
+    "macOS arm64 verified; other hosts require CI/device-specific validation",
+    "Real-model research was not rerun on the new Harness",
+    "Existing external deployment files require an explicit host-baseline update",
+    "Keep Provider version and original device directories for unresolved operations",
+    "No automatic restoration of Agent grants or supervisor-crash continuation",
+    "Upstream-only unrelated product surfaces are not claimed fully tested locally"
+  ]
+}

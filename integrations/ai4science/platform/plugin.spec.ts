@@ -1,3 +1,4 @@
+import { HARNESS_BASELINE } from './version.ts'
 /** Actual Loader composition connects native scripted Agents to independently journaled Provider execution. */
 import { afterEach, expect, it, vi } from 'vitest'
 import { writeFile, readFile } from 'node:fs/promises'
@@ -59,7 +60,7 @@ it('native cross-parent participants execute, wait, exchange persisted job refer
       JSON.stringify({
         apiVersion: 1,
         enabled: true,
-        baseline: 'd347e703908d0406b7a7ef80e3a0e594d86b2215',
+        baseline: HARNESS_BASELINE,
         directory: join(root, 'execution'),
         pollIntervalMs: 2,
         providerCallTimeoutMs: 5000,

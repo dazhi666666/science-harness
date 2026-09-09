@@ -34,7 +34,7 @@ def main():
                                    cwd=directory, capture_output=True, text=True, check=True)
         packed = json.loads(completed.stdout)[0]
         path = output / packed['filename']
-        packages.append({'name': packed['name'], 'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+        packages.append({'name': packed['name'], 'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'harnessBaseline': json.loads((repo / 'UPSTREAM.json').read_text())['upstreamCommit']})
     (output / 'packages.json').write_text(json.dumps(packages, indent=2) + '\n')
     print(json.dumps(packages, indent=2))
 

@@ -79,3 +79,13 @@ supervisor 独立于 Harness 存活，持有本作业的 SQLite 排他所有权�
 启动期限内的 accepted 表示设备侧登记已接受，不代表 worker 已经开始。超过启动期限仍无有效所有者，或运行中的 supervisor 失效时，查询返回 unknown。已有占用和预算继续保留。supervisor 的 IPC 连接断开后，worker 会退出；该路径仍保留 unknown，因为不存在一个可信 supervisor 来确认终态。没有 OS 重启续算或 supervisor 崩溃自动恢复。设备日志或产物发布失败也不得伪造成功。
 
 工作进程继承经过限定的系统环境，不接收模型凭据或可配置执行命令。外部插件仍属于受信本地代码；本轮不提供恶意插件沙箱或分布式作业服务。使用的计算算法保持固定，这次验收不评价科研结论。发布说明和本地结果摘要见 `validation/external-job.json`。
+
+## 上游更新接入
+
+当前宿主已接入 DeepSeek Harness `0.1.5-alpha.1`，精确提交为 `5dda764ed3aa172535a7967b06ff95d9cbfe536a`。上游默认分支为 master，绑定为只读 upstream；origin 保持本项目仓库。`UPSTREAM.json` 是当前基线的唯一记录，历史验证 JSON 继续保留原版本。常规更新通过 `platform/upstream.py` 获取差异、准备隔离工作树，完成兼容迁移和验证后再合并主分支，不自动绕过检查。
+
+上游将原 continuation 管理实现拆成协调器和 activation registry。本地结果交换扩展仍由协调器创建，复用 registry 的真实活实例、父子关系、锁、冷恢复和投递。最后的授权预留移到原生同步投递之前；入箱失败时回滚关联记录。默认关闭和单关系默认值不变。
+
+Session 持久读取返回对象中的 events，而非直接事件数组；相关探针已使用实际新接口。宿主卸载前先通过公开 drain 接口结束 continuable 后代，再释放事件投影，避免读取已卸载的 inbox 状态。V2 到 V3 使用上游相邻版本迁移，原文件不覆盖。新增测试验证旧子会话冷恢复后仍没有自动恢复旧科研授权。
+
+执行数据库仍使用原 schema，公开 Provider SDK 协议仍为 1。两个已有操作、六个产物及其预算/哈希在新宿主下读取、导出后保持一致。外部 Provider 的初始化配置读取在并发打开 SQLite 时暴露了短暂锁竞争；`0.1.1` 对该读取使用与后续连接一致的有界 busy timeout，不扩大权限，也不自动重派未知任务。已有未完成任务仍需保留匹配的旧 Provider 版本。

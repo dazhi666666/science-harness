@@ -23,7 +23,7 @@ def main():
         tarballs.append(str(path))
     (root / 'package.json').write_text('{"name":"local-job-installation","private":true,"type":"module"}\n')
     subprocess.run(['npm', 'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', *tarballs], cwd=root, check=True)
-    config = {'apiVersion':1,'enabled':True,'baseline':'d347e703908d0406b7a7ef80e3a0e594d86b2215',
+    config = {'apiVersion':1,'enabled':True,'baseline':packages[0]['harnessBaseline'],
               'directory':'./data/execution','pollIntervalMs':50,'providerCallTimeoutMs':5000,
               'management':{'actorId':'local-operator','projects':['external'],'allowedProviders':['local-job']},
               'providers':[{'module':'./node_modules/@ai4science/provider-local-job/src/index.mjs',

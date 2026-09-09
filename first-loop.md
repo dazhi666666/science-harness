@@ -75,3 +75,11 @@ python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-
 首次启动有界等待后仍无法确认、监督进程死亡或查询失败时，平台保留 unknown 与占用；不能通过重新提交同一 key 启动另一份任务。取消请求不等于终止确认。永久未知情况需要人工核对，不提供强制成功或自动清空资源入口。普通 Harness 关闭不取消外部工作，但操作系统重启、supervisor 崩溃后的续算及真实设备尚未支持或验证。
 
 `external-job/check.py` 在源码目录外安装两个包，使用独立 Python 实现复算哈希结果；在没有 Provider 查询的间隔检查设备进度；验证宿主 SIGKILL 后的原操作找回、丢失回复、并发重复提交、无关项目及失效上下文、监督进程死亡、可执行文件缺失和实际取消。脚本 Agent 还会通过原平台工具完成提交、等待、读取与结束。完整日志保存到指定输出目录，不提交个人路径和设备数据库到公共源码仓库。
+
+## 更新宿主后的使用
+
+当前宿主基线见 [UPSTREAM.json](UPSTREAM.json)。运行 `python3 integrations/ai4science/platform/upstream.py check` 可获取上游 master 的差异；有更新时可用 prepare 和一个新目录建立隔离集成工作树。版本升级后先重新运行 `platform/setup.py`，构建新的 native system addon，再执行平台与外部插件验收。
+
+仓库内示例跟随当前版本；已经生成到仓库外的部署 JSON 不会被自动改写。将其中 baseline 显式改为新提交后，保留原设备目录、原任务身份和未完成操作所要求的 Provider 版本，再通过原 CLI 核对已有记录。不要将重启解释为重新授权，也不要因版本不匹配而清空占用。
+
+旧 first-loop 验证器仍认可已验收的原始基线/补丁组合，并会优先选择每个会话目录的最高 JSONL 版本。新运行的版本与补丁信息来自当前 UPSTREAM.json。升级后没有重新开展真实模型科研过程；当前证据包括确定性 Agent 集成、V2 子会话迁移、已有执行记录读取、独立计算插件和上游相关回归。

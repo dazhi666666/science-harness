@@ -86,7 +86,7 @@ async function parent(ctx: Context, id: string, provider = 'idle-probe') {
 }
 async function stored(ctx: Context, id: SessionId) {
   const handle = await ctx.sessionPersistence.open(id, 'read')
-  try { return { header: handle.header, events: await handle.read() } } finally { await handle.close() }
+  try { return { header: handle.header, events: (await handle.read()).events } } finally { await handle.close() }
 }
 async function execute(ctx: Context, name: string, args: unknown, agent?: Agent) {
   return ctx.tools.execute({ callId: ToolCallId('probe-call'), name, arguments: args, signal: signal(), ...(agent ? { agent } : {}) })

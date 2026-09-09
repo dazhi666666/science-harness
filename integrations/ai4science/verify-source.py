@@ -7,7 +7,7 @@ import subprocess
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--git-repo", required=True)
-parser.add_argument("--revision", default="d347e703908d0406b7a7ef80e3a0e594d86b2215")
+parser.add_argument("--revision", default=json.loads((pathlib.Path(__file__).resolve().parents[2] / "UPSTREAM.json").read_text())["upstreamCommit"])
 args = parser.parse_args()
 root = pathlib.Path(__file__).resolve().parents[2]
 commit = subprocess.check_output(

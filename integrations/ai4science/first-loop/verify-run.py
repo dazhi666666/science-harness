@@ -26,6 +26,15 @@ def jsonl(path):
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
+def session_logs(root):
+    selected = {}
+    for path in (root / 'host-home' / 'sessions').glob('**/session.v*.jsonl'):
+        version = int(path.name.split('.')[1][1:])
+        if path.parent not in selected or version > selected[path.parent][0]:
+            selected[path.parent] = (version, path)
+    return [path for _, path in selected.values()]
+
+
 def millis(value):
     return datetime.datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp() * 1000
 
@@ -54,8 +63,13 @@ def verify(root, checks, inspect_incomplete=False):
     if not inspect_incomplete:
         require(result.get('success') is True and result.get('exitCode') == 0 and project.get('status') == 'completed' and not project.get('failure'),
                 f"Run is not complete: status={project.get('status')}, success={result.get('success')}, failure={project.get('failure')}")
-    require(project['baseline'] == launch['baseline'] == 'd347e703908d0406b7a7ef80e3a0e594d86b2215', 'Unexpected Harness baseline')
-    require(project['communicationPatch'] == launch['communicationPatchSHA256'] == '1290e8e568dd9770d0079c85dd425bd8c2c13a5ba0b530de3df1e4bfea617beb', 'Unexpected frozen communication patch')
+    approved = {'d347e703908d0406b7a7ef80e3a0e594d86b2215':'1290e8e568dd9770d0079c85dd425bd8c2c13a5ba0b530de3df1e4bfea617beb'}
+    manifest_path = pathlib.Path(__file__).resolve().parents[3] / 'UPSTREAM.json'
+    if manifest_path.exists():
+        current = load(manifest_path)
+        approved[current['upstreamCommit']] = current['hostPatchSHA256']
+    require(project['baseline'] == launch['baseline'] and launch['baseline'] in approved, 'Unexpected Harness baseline')
+    require(project['communicationPatch'] == launch['communicationPatchSHA256'] == approved[launch['baseline']], 'Unexpected recorded communication patch')
     checks.append('fixed upstream and explicit communication patch' if inspect_incomplete else 'completed launch, fixed upstream and explicit communication patch')
     people = {p['id']: p for p in project['participants']}
     require(len(people) == len(project['participants']) == 5, 'Exactly five distinct participants are required')
@@ -65,7 +79,7 @@ def verify(root, checks, inspect_incomplete=False):
     roles = {(p['role'], p.get('branch')): p for p in people.values()}
     require(set(roles) == {('lead', None), ('research', 'A'), ('research', 'B'), ('midbrain', 'A'), ('midbrain', 'B')}, 'Unexpected role or branch roster')
     sessions = {}
-    for path in (root / 'host-home' / 'sessions').glob('**/session.v2.jsonl'):
+    for path in session_logs(root):
         rows = jsonl(path)
         require(rows and rows[0]['type'] == 'session', f'Missing native session header: {path.name}')
         header = rows[0]
@@ -283,7 +297,7 @@ def archive_attempts(root, destination):
     project = load(root / 'project.json')
     lead_ids = {p['id'] for p in project['participants'] if p['role'] == 'lead'}
     proposals = []
-    for path in (root / 'host-home' / 'sessions').glob('**/session.v2.jsonl'):
+    for path in session_logs(root):
         rows = jsonl(path)
         if rows[0]['id'] not in lead_ids:
             continue

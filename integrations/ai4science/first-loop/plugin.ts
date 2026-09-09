@@ -1,6 +1,6 @@
 /** One concrete five-Agent science study through the real headless CLI and existing host runtime. */
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, renameSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, renameSync, writeFileSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -18,6 +18,8 @@ import { installCompletionBoundary } from './completion.ts'
 import { serialModelStreams } from './model-limit.ts'
 import { saveAnalysis, saveReport } from './analysis.ts'
 import { assertDecisionMatches, assertReportGate, decisionSchema, operationsSchema, missingReportFacts } from './policy.ts'
+
+const hostVersion = JSON.parse(readFileSync(new URL('../../../UPSTREAM.json', import.meta.url), 'utf8')) as {upstreamCommit:string;hostPatchSHA256:string}
 
 export const name = 'ai4science-first-loop'
 export const inject = ['agents', 'tools', 'subagents', 'sessions', 'systemPrompt', 'llm']
@@ -61,7 +63,7 @@ export async function apply(ctx:Context, config:Config):Promise<void> {
  const startedAt=new Date().toISOString()
  const write=(path:string,value:unknown)=>{const full=join(root,path);mkdirSync(resolve(full,'..'),{recursive:true});const tmp=full+'.tmp';writeFileSync(tmp,JSON.stringify(value,null,2)+'\n',{mode:0o600});renameSync(tmp,full)}
  const event=(kind:string,data:unknown)=>appendFileSync(join(root,'project-events.jsonl'),JSON.stringify({kind,at:new Date().toISOString(),data})+'\n',{mode:0o600})
- const persist=()=>write('project.json',{project:config.project,status:state,failure:failure??null,startedAt,processId:process.pid,baseline:'d347e703908d0406b7a7ef80e3a0e594d86b2215',communicationPatch:'1290e8e568dd9770d0079c85dd425bd8c2c13a5ba0b530de3df1e4bfea617beb',model:{provider:'stepfun-science',model:'step-3.7-flash',endpoint:'https://api.stepfun.com/step_plan/v1',credentialRef:'AI4S_STEPFUN_API_KEY'},limits:config,modelRequests:requests,observedTokens,instrumentBudget:instrument.budgetStatus(),participants:[...participants.values()],consents:[...consents],analyses:analyses.map(a=>({id:a.id,artifactPath:a.artifactPath,ownerId:a.ownerId,runIds:a.runIds})),decisions,exchanges,processed,report:report??null})
+ const persist=()=>write('project.json',{project:config.project,status:state,failure:failure??null,startedAt,processId:process.pid,baseline:hostVersion.upstreamCommit,communicationPatch:hostVersion.hostPatchSHA256,model:{provider:'stepfun-science',model:'step-3.7-flash',endpoint:'https://api.stepfun.com/step_plan/v1',credentialRef:'AI4S_STEPFUN_API_KEY'},limits:config,modelRequests:requests,observedTokens,instrumentBudget:instrument.budgetStatus(),participants:[...participants.values()],consents:[...consents],analyses:analyses.map(a=>({id:a.id,artifactPath:a.artifactPath,ownerId:a.ownerId,runIds:a.runIds})),decisions,exchanges,processed,report:report??null})
  const changed=()=>{version++;persist();for(const waiter of [...waits])waiter.check()}
  const fail=(reason:string)=>{
   if(state!=='running')return

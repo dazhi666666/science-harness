@@ -8,6 +8,8 @@ import { openJournal, transaction, lockPath, terminal, event } from './journal.m
 
 const [directory, jobId, nonce] = process.argv.slice(2)
 const settingsDb = new DatabaseSync(join(directory, 'jobs.sqlite'))
+// WAL recovery or a concurrent connection can briefly hold the settings read lock.
+settingsDb.exec('PRAGMA busy_timeout=1000')
 const config = JSON.parse(settingsDb.prepare('SELECT value FROM settings WHERE id=1').get().value)
 settingsDb.close()
 const db = openJournal(config)

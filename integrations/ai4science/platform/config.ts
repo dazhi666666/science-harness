@@ -6,7 +6,8 @@ import { z } from 'zod'
 import { validateProvider, type Json, type ExecutionProvider } from './sdk.ts'
 import { ExecutionEngine } from './execution.ts'
 
-export const HARNESS_BASELINE = 'd347e703908d0406b7a7ef80e3a0e594d86b2215'
+import { HARNESS_BASELINE } from './version.ts'
+export { HARNESS_BASELINE } from './version.ts'
 export const PLATFORM_VERSION = '0.1.0'
 const schema = z
   .object({

@@ -13,12 +13,13 @@ out=args.output.resolve()
 if out.exists(): raise SystemExit('Output directory already exists; restart/recovery is unsupported, use a new run directory')
 out.mkdir(parents=True,mode=0o700)
 project='study-'+str(uuid.uuid4())
+host_version=json.loads((repo/'UPSTREAM.json').read_text())
 env={k:v for k,v in os.environ.items() if not any(word in k.upper() for word in ['KEY','TOKEN','SECRET','PASSWORD'])}
 env.update({'AI4S_STEPFUN_API_KEY':key,'AI4S_RUN_DIR':str(out),'AI4S_PROJECT_ID':project,'DSH_HOME':str(out/'host-home'),'DSH_TELEMETRY_DISABLED':'1'})
 prompt='Conduct the complete five-Agent research study described in your science role instructions. Create both research branches, let them create and authorize their own midbrains, obtain and exchange initial results, obtain both research analyses, choose and actually execute at least one evidence-driven follow-up, analyze its observations, and publish your evidence-linked Markdown report. Use science_wait to remain active until completion. Scientific conclusions and the follow-up must be your decisions based on tool-returned observations, not assumed ground truth.'
 command=['node','--import','tsx/esm','apps/cli/src/bin.ts','--profile','headless','--patch',str(here/'model.patch.yml'),'--patch',str(here/'study.patch.yml'),prompt]
 implementation={str(p.relative_to(repo)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(here.glob('*.ts'))}
-launch={'command':command,'cwd':str(repo),'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'entry':'dsh --profile headless','project':project,'model':{'provider':'stepfun-science','id':'step-3.7-flash','baseURL':'https://api.stepfun.com/step_plan/v1','credentialRef':'AI4S_STEPFUN_API_KEY'},'baseline':'d347e703908d0406b7a7ef80e3a0e594d86b2215','communicationPatchSHA256':'1290e8e568dd9770d0079c85dd425bd8c2c13a5ba0b530de3df1e4bfea617beb','implementationSHA256':implementation}
+launch={'command':command,'cwd':str(repo),'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'entry':'dsh --profile headless','project':project,'model':{'provider':'stepfun-science','id':'step-3.7-flash','baseURL':'https://api.stepfun.com/step_plan/v1','credentialRef':'AI4S_STEPFUN_API_KEY'},'baseline':host_version['upstreamCommit'],'communicationPatchSHA256':host_version['hostPatchSHA256'],'implementationSHA256':implementation}
 (out/'launch.json').write_text(json.dumps(launch,indent=2)+'\n')
 start=time.monotonic()
 with (out/'cli.log').open('w') as log:

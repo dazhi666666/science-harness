@@ -1,3 +1,4 @@
+import { HARNESS_BASELINE } from '../platform/version.ts'
 /** Isolated real Loader composition and gated external LLM fixture. No host internals are replaced. */
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -26,7 +27,7 @@ import * as TeamTools from '@deepseek-ai/dsh-experimental-tool-agent-team'
 import { textResponse } from '../../../packages/core/agent-loop/tests/mock-adapter.ts'
 import * as Science from '../plugin.ts'
 
-export const revision = 'd347e703908d0406b7a7ef80e3a0e594d86b2215'
+export const revision = HARNESS_BASELINE
 export const text = (value: string) => [{ type: 'text' as const, text: value }]
 export const signal = () => AbortSignal.timeout(15000)
 export type ScriptStep = StreamChunk[] | ((options: GenerateOptions) => StreamChunk[] | Promise<StreamChunk[]>)
@@ -131,7 +132,7 @@ export async function boot(label: string): Promise<Probe> {
     if (unloaded.length) throw new Error(`unloaded entries: ${unloaded.map(entry => entry.options.name)}`)
   } catch (error) { await ctx.fiber.dispose(); throw error }
   return { ctx, model, root, trace, report, note, async close() {
-    try { await ctx.fiber.dispose() }
+    try { await ctx.subagents.drainContinuableDescendants(ctx.agents.roots()); await ctx.fiber.dispose() }
     finally {
       await writeFile(join(root, 'timeline.json'), JSON.stringify(trace, null, 2) + '\n')
       await writeFile(join(root, 'report.json'), JSON.stringify(report, null, 2) + '\n')
@@ -158,7 +159,7 @@ export async function execute(probe: Probe, name: string, args: unknown, agent?:
 }
 export async function stored(probe: Probe, id: SessionId) {
   const handle = await probe.ctx.sessionPersistence.open(id, 'read')
-  try { return { header: handle.header, events: await handle.read() } }
+  try { return { header: handle.header, events: (await handle.read()).events } }
   finally { await handle.close() }
 }
 

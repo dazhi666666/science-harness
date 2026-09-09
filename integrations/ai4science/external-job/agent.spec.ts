@@ -1,3 +1,4 @@
+import { HARNESS_BASELINE } from '../platform/version.ts'
 /** Native scripted Agent exercises the installed external Provider through existing platform tools. */
 import { it, expect, vi } from 'vitest'
 import { writeFile, readFile } from 'node:fs/promises'
@@ -36,7 +37,7 @@ it('a script Agent submits, waits, reads and concludes through the existing auth
       JSON.stringify({
         apiVersion: 1,
         enabled: true,
-        baseline: 'd347e703908d0406b7a7ef80e3a0e594d86b2215',
+        baseline: HARNESS_BASELINE,
         directory: join(root, 'execution'),
         pollIntervalMs: 10,
         providerCallTimeoutMs: 3000,

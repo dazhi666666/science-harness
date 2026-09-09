@@ -1,7 +1,7 @@
 {
   "apiVersion": 1,
   "enabled": true,
-  "baseline": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
+  "baseline": "5dda764ed3aa172535a7967b06ff95d9cbfe536a",
   "directory": "./local-data/platform",
   "pollIntervalMs": 50,
   "providerCallTimeoutMs": 10000,

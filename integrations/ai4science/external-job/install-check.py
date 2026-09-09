@@ -39,7 +39,7 @@ def main():
     sdk = consumer / 'node_modules/@ai4science/provider-sdk/dist/sdk.js'
     check('SDK and Provider installed as separate plain-ESM packages outside platform source', module.is_file() and sdk.is_file())
     run(['node', '--input-type=module', '-e', "import {validateProvider} from '@ai4science/provider-sdk';import {createProvider} from '@ai4science/provider-local-job';console.log(JSON.stringify({sdk:typeof validateProvider,provider:typeof createProvider}));"], cwd=consumer)
-    config = {'apiVersion': 1, 'enabled': True, 'baseline': 'd347e703908d0406b7a7ef80e3a0e594d86b2215',
+    config = {'apiVersion': 1, 'enabled': True, 'baseline': json.loads((repo / 'UPSTREAM.json').read_text())['upstreamCommit'],
               'directory': str(root / 'execution'), 'pollIntervalMs': 20, 'providerCallTimeoutMs': 5000,
               'management': {'actorId': 'operator', 'projects': ['external'], 'allowedProviders': ['local-job']},
               'providers': [{'module': str(module), 'config': {'id': 'local-job', 'directory': str(root / 'device'),

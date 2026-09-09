@@ -73,7 +73,7 @@ python3 integrations/ai4science/platform/manage.py --home .ai4science/home start
 python3 integrations/ai4science/platform/manage.py --home .ai4science/home status --project example
 ```
 
-The setup script installs dependencies from the two existing lockfiles, compiles the host's `fs-ext` dependency, and builds type declarations. The application entry remains `dsh --profile ai4science`; `manage.py` launches it from source. Configuration determines project and device directories. Git ignores generated example data.
+The setup script installs dependencies from the two existing lockfiles, builds the host's native system addon, and builds type declarations. The application entry remains `dsh --profile ai4science`; `manage.py` launches it from source. Configuration determines project and device directories. Git ignores generated example data.
 
 ## Capabilities
 
@@ -142,6 +142,21 @@ An `unknown` operation retains its resources and budget and is never automatical
 
 ## Upstream and Licensing
 
-The Harness baseline is pinned to `d347e703908d0406b7a7ef80e3a0e594d86b2215`. The host is modified: the repository source already includes the [complete host patch](patches/harness-ai4science-v0.1.patch). Do not apply it again. [UPSTREAM.json](UPSTREAM.json) records the baseline, affected files, and patch hash.
+The Harness baseline is pinned to `5dda764ed3aa172535a7967b06ff95d9cbfe536a` (`0.1.5-alpha.1`). The host is modified: the repository source already includes the [complete host patch](patches/harness-ai4science-v0.1.patch). Do not apply it again. [UPSTREAM.json](UPSTREAM.json) records the baseline, affected files, and patch hash.
 
 The upstream MIT license and DeepSeek copyright notice remain in [LICENSE](LICENSE). Third-party licenses remain in their component directories. The license status of the new AI4Science code is recorded in [integrations/ai4science/LICENSE](integrations/ai4science/LICENSE) and must be decided by the project owner before a formal release.
+
+## Following Harness Upstream
+
+The repository tracks DeepSeek Harness's `master` branch through a read-only `upstream` remote. [UPSTREAM.json](UPSTREAM.json) is the single current host-version record; plugin configuration, package examples and validation read that pin. Historical validation files retain the revisions they actually tested.
+
+```sh
+python3 integrations/ai4science/platform/upstream.py check
+python3 integrations/ai4science/platform/upstream.py prepare --directory ../science-harness-upstream-next
+```
+
+`check` binds or verifies the upstream remote, disables pushes to it, fetches its configured branch, and reports commits beyond the pinned baseline. When updates exist, `prepare` requires a clean checkout and creates a separate integration branch/worktree with an uncommitted merge. It leaves the caller's branch unchanged. Maintainers resolve conflicts, port the small host extension, regenerate its review patch, update the pin and run the platform and external-job checks before promoting the merge. Upstream publishing workflows are not automatically adopted into this project's CI.
+
+The current intake includes Harness `0.1.5-alpha.1`, Session V3 and the host's reorganized continuation implementation. Cross-branch permission checks and the final synchronous acceptance/rollback boundary remain in the native delivery path. A migration test cold-resumes a V2 child while preserving its predecessor file and requiring fresh authority. Existing completed execution records and result hashes were also checked without replaying work. See [the upgrade validation](validation/upstream-0.1.5.json).
+
+After updating source, rerun `platform/setup.py` to install the frozen dependencies and build the current native addon. Existing external deployment files must explicitly update their `baseline` to the new pin. Keep the original device directories and exact Provider versions for unresolved operations; changing the host pin does not restore old Agent authorization or permit a device-version mismatch. The external local-job Provider is now `0.1.1`, including a bounded SQLite bootstrap-lock wait exposed by the upgrade regression. Freshly built package manifests carry the host pin used by their deployment example.

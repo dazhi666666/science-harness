@@ -36,7 +36,7 @@ export function createProvider(input) {
     describe: () => ({
       apiVersion: 1,
       id: config.id,
-      version: '0.1.0',
+      version: '0.1.1',
       configuration: config,
       inputSchema: {
         type: 'object',

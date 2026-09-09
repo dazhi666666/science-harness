@@ -1,4 +1,4 @@
-"""Prepare the source installation using existing frozen locks and the host's native Session-lock dependency."""
+"""Prepare the source installation using existing frozen locks and the host's native system dependency."""
 import json
 import pathlib
 import subprocess
@@ -9,7 +9,7 @@ def main():
     commands = [
         ['pnpm', 'install', '--frozen-lockfile', '--ignore-scripts'],
         ['pnpm', '--dir', 'integrations/ai4science', 'install', '--ignore-workspace', '--frozen-lockfile', '--ignore-scripts'],
-        ['pnpm', '-r', 'rebuild', 'fs-ext'],
+        ['pnpm', 'run', 'build:native-system'],
         ['pnpm', 'exec', 'tsc', '-b', 'integrations/ai4science/platform/tsconfig.json', '--pretty', 'false'],
     ]
     for command in commands:
