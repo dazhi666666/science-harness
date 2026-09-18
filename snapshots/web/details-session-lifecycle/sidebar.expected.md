@@ -39,7 +39,7 @@
       "active": false,
       "tabs": [
         {
-          "title": "Start",
+          "title": "Files",
           "selected": true
         }
       ]
@@ -87,7 +87,7 @@
       "active": false,
       "tabs": [
         {
-          "title": "Start",
+          "title": "Files",
           "selected": true
         }
       ]
@@ -135,7 +135,7 @@
       "active": false,
       "tabs": [
         {
-          "title": "Start",
+          "title": "Files",
           "selected": true
         }
       ]
@@ -220,7 +220,7 @@
       "active": false,
       "tabs": [
         {
-          "title": "Start",
+          "title": "Files",
           "selected": true
         }
       ]
@@ -229,7 +229,7 @@
 }
 ```
 
-## B restored: normal mode and Files directory state
+## B restored: normal mode and collapsed Files directory
 
 ```json
 {
@@ -249,9 +249,7 @@
   "panelOuterWidth": 757,
   "coversViewport": false,
   "resizeHandleWidth": 8,
-  "expandedDirectories": [
-    "workspace"
-  ],
+  "expandedDirectories": [],
   "panes": [
     {
       "active": true,
@@ -305,7 +303,7 @@
       "active": false,
       "tabs": [
         {
-          "title": "Start",
+          "title": "Files",
           "selected": true
         }
       ]
@@ -353,7 +351,7 @@
       "active": false,
       "tabs": [
         {
-          "title": "Start",
+          "title": "Files",
           "selected": true
         }
       ]
@@ -401,7 +399,7 @@
       "active": false,
       "tabs": [
         {
-          "title": "Start",
+          "title": "Files",
           "selected": true
         }
       ]
@@ -449,7 +447,7 @@
       "active": false,
       "tabs": [
         {
-          "title": "Start",
+          "title": "Files",
           "selected": true
         }
       ]
@@ -497,7 +495,7 @@
       "active": false,
       "tabs": [
         {
-          "title": "Start",
+          "title": "Files",
           "selected": true
         }
       ]

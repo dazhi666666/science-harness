@@ -80,7 +80,7 @@ export interface Probe {
 }
 
 /** Load source modules via real Loader entries and preserve disk evidence after teardown. */
-export async function boot(label: string, enabled = true): Promise<Probe> {
+export async function boot(label: string, enabled = true, maxActiveSubagents = 8): Promise<Probe> {
   const evidence = fileURLToPath(new URL('../evidence/cross-branch/', import.meta.url))
   await mkdir(evidence, { recursive: true })
   const root = await mkdtemp(join(evidence, `${label}-`))
@@ -111,7 +111,7 @@ export async function boot(label: string, enabled = true): Promise<Probe> {
   const configs: Record<string, unknown> = {
     jsonl: { root: join(root, 'sessions'), compression: 'none' },
     query: { path: ':memory:', openAt: 'never' }, loop: { agents: [] },
-    subagents: enabled ? { scienceResultProject: 'cross-branch-project', scienceResultMaxPending: 8 } : {},
+    subagents: { maxActiveSubagents, ...(enabled ? { scienceResultProject: 'cross-branch-project', scienceResultMaxPending: 8 } : {}) },
     spawn: { providerName: 'spawn' }, 'storage-json': { root: join(root, 'records') },
     'storage-domain': { backend: 'json' }, science: { project: 'cross-branch-project', provider: 'spawn', maxDepth: 3, crossBranchResults: enabled },
     teams: { maxMembers: 8, maxTasks: 16, maxPendingMessagesPerMember: 8, maxMessageBytes: 4096, disposalTimeoutMs: 5000 },

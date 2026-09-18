@@ -328,11 +328,65 @@ it('removing the science store binding revokes grants and removes the optional t
   const exchange = p.ctx.subagents.scienceResults!
   const entry = [...p.ctx.loader.entries()].find(entry => entry.options.name === 'science')!
   await entry.update({ config: { project: 'cross-branch-project', provider: 'spawn', maxDepth: 3, crossBranchResults: false } })
+  // Loader update starts a restart; the Fiber owns completion and startup errors.
+  await entry.fiber!.await()
   expect(p.ctx.tools.get('science_send_result', w.a)).toBeUndefined()
   expect(p.ctx.tools.get('science_measure', w.a)).toBeDefined()
   await expect(exchange.send(w.a, w.b.id, { kind: 'reference', resultId: saved.id }, signal())).rejects.toMatchObject({ code: 'SCIENCE_NO_GRANT' })
   await exchange.authorize(w.ra, { childId: w.a.id, peerChildId: w.b.id, peerParent: w.rb }, signal())
   await exchange.authorize(w.rb, { childId: w.b.id, peerChildId: w.a.id, peerParent: w.ra }, signal())
   await expect(exchange.send(w.a, w.b.id, { kind: 'reference', resultId: saved.id }, signal())).rejects.toMatchObject({ code: 'SCIENCE_RESULT_UNAVAILABLE' })
+  p.report.status = 'passed'
+})
+
+
+it('cross-branch cold delivery respects the upstream activation capacity and succeeds after a slot is released', async () => {
+  const p = await boot('upstream-capacity', true, 4); probes.push(p)
+  const w = await workers(p)
+  await authorize(p, w.ra, w.rb)
+  const saved = await result(p, w.a)
+  w.holdB.release(); await absent(p, w.b.id)
+  const busy = new Gate(); p.model.queue('capacity-holder', busy.step())
+  await branch(p, w.ra, 'capacity-holder')
+  const exchange = p.ctx.subagents.scienceResults!
+  await expect(exchange.send(w.a, w.b.id, { kind: 'reference', resultId: saved.id }, signal())).rejects.toMatchObject({ code: 'ACTIVATION_LIMIT_REACHED' })
+  expect(p.ctx.agents.get(w.b.id)).toBeUndefined()
+  expect((await stored(p, w.b.id)).events.some(e => e.type === 'agent/inbox/spliced' && e.data.inserted.some(m => m.source.kind === 'science-result'))).toBe(false)
+  busy.release(); await absent(p, SessionId('capacity-holder'))
+  p.model.queue('midbrain-b', options => {
+    expect(payload(options, 'reference')).toMatchObject({ resultId: saved.id, senderSessionId: w.a.id })
+    return textResponse('Reference processed after capacity became available.')
+  })
+  const id = await exchange.send(w.a, w.b.id, { kind: 'reference', resultId: saved.id }, signal())
+  await absent(p, w.b.id)
+  expect((await stored(p, w.b.id)).events.some(e => e.type === 'user/message' && e.data.id === id)).toBe(true)
+  p.report.status = 'passed'
+})
+
+it('awaited Agent creation retains the final authority check after an asynchronous initialization gap', async () => {
+  const p = await setup('upstream-async-creation'); const w = await workers(p)
+  await authorize(p, w.ra, w.rb)
+  const saved = await result(p, w.a)
+  w.holdB.release(); await absent(p, w.b.id)
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>()
+  const stop = p.ctx.on('agent/created', async ({ agent }) => {
+    if (agent.id !== w.b.id) return
+    entered.resolve()
+    await release.promise
+  })
+  const exchange = p.ctx.subagents.scienceResults!
+  let settled = false
+  const delivery = exchange.send(w.a, w.b.id, { kind: 'reference', resultId: saved.id }, signal()).then(
+    value => { settled = true; return { accepted: true, value } },
+    error => { settled = true; return { accepted: false, error } },
+  )
+  try {
+    await entered.promise
+    expect(settled).toBe(false)
+    exchange.revoke(w.ra)
+  } finally { release.resolve(); stop() }
+  expect((await delivery).accepted).toBe(false)
+  await absent(p, w.b.id)
+  expect((await stored(p, w.b.id)).events.some(e => e.type === 'agent/inbox/spliced' && e.data.inserted.some(m => m.source.kind === 'science-result'))).toBe(false)
   p.report.status = 'passed'
 })

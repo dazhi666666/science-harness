@@ -1,6 +1,6 @@
 /** Chat-owned Slot declarations and composed component props. */
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
-import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
+import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type {
   CommandNode, CompactionSummaryNode, ConversationLocationDataStore, ConversationTurnDataMap,
   MessageImageLoader, MessageImagesOwnerProps, RenderMessageImages, TurnLocation,
@@ -53,9 +53,10 @@ export interface ChatFileMentions {
   /**
    * Resolve prose links for one closing Turn.
    * @param owner - closing-Turn identity and file opener.
+   * @param sessionId - viewed Session, including when history is inherited from a fork.
    * @returns link resolver when available.
    */
-  forClosing(owner: TurnTailOwnerProps): MarkdownFileMentions | undefined
+  forClosing(owner: TurnTailOwnerProps, sessionId: SessionId): MarkdownFileMentions | undefined
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -78,6 +79,8 @@ export interface ChatNodeTurnDataInjected {
 /** Stable owner currency delivered to a keyed Chat renderer. */
 export interface ChatNodeOwnerProps {
   cwd?: string | undefined
+  /** Open the current source file of a skill referenced by a sent message. */
+  openSkill: (name: string) => void
   openFile: (path: string, options?: OpenFileOptions) => void
   inspectCall: (callId: ToolCallId) => void
   forkAt: (seq: number) => void
@@ -137,6 +140,10 @@ export interface ChatViewInjected {
     /** Resolve the stable Turn-process source for one Chat Node key. */
     chatNodeProcess: (key: string) => ChatNodeProcessSource
   }
+  /** Open the current source file of a skill referenced by a sent message. */
+  openSkill: (name: string) => void
+  /** Open one HTTP(S) message link in a Sidebar Browser tab. */
+  openExternalLink: (url: string) => void
   openFile: (path: string, options?: OpenFileOptions) => Promise<void>
   loadOlder: () => void
   /** Jump loader: page history back through seq; resolves when the window covers it. */
@@ -199,11 +206,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'conversation.chat.commandview': { kind: 'keyed'; scope: 'session'; owner: CommandRowOwnerProps }
     /**
-     * Selector-routed extension before a completed Turn's action row. The
-     * component receives the Turn, closing sequence, and file opener. The first
-     * selector that accepts the owner renders; an all-declined chain is empty.
+     * Ordered feature contributions before a completed Turn's action row. Each
+     * entry receives the Turn, closing sequence, and file opener. A fresh `id`
+     * adds an entry; entries without content return null.
      */
-    'conversation.chat.turnTail': { kind: 'chain'; scope: 'session'; owner: TurnTailOwnerProps }
+    'conversation.chat.turnTail': { kind: 'list'; scope: 'session'; owner: TurnTailOwnerProps }
     /**
      * Ordered actions for one finalized assistant message. Each entry receives
      * the durable message id; a fresh `id` adds an action and reusing one replaces

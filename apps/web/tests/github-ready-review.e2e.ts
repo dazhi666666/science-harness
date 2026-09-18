@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
-import { afterAll, beforeAll, describe, expect, it, onTestFailed, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-webhook'
@@ -30,7 +30,7 @@ const EXPANDED_EXPECTED = fileURLToPath(
 const PROVIDER = 'github-webhook-review-test'
 const MODEL = 'reply'
 const SECRET = 'github-webhook-review-secret'
-const TITLE = 'Review deepseek-harness/deepseek-harness#314'
+const TITLE = 'Review deepseek-ai/deepseek-harness#314'
 const REPLY = 'Review complete: no actionable findings.'
 
 /** Deterministic model response for the webhook-created Session. */
@@ -129,10 +129,10 @@ describe.skipIf(MODE === 'record')('web e2e: GitHub ready-for-review', () => {
     const payload = {
       action: 'ready_for_review',
       number: 314,
-      repository: { full_name: 'deepseek-harness/deepseek-harness' },
+      repository: { full_name: 'deepseek-ai/deepseek-harness' },
       pull_request: {
         title: 'Fix session replay',
-        html_url: 'https://github.com/deepseek-harness/deepseek-harness/pull/314',
+        html_url: 'https://github.com/deepseek-ai/deepseek-harness/pull/314',
         draft: false,
         user: { login: 'octocat' },
         base: { ref: 'master', sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
@@ -147,10 +147,29 @@ describe.skipIf(MODE === 'record')('web e2e: GitHub ready-for-review', () => {
         && event.data.source.deliveryId === 'ready' && event.data.source.ruleId === 'review-pr-when-ready') reviewSession = session.id
       if (event.type === 'turn/end' && session.id === reviewSession) completed.resolve(undefined)
     })
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    const createWorkspace = scaffold.ctx.workspaceRegistry.create.bind(scaffold.ctx.workspaceRegistry)
+    const create = vi.spyOn(scaffold.ctx.workspaceRegistry, 'create').mockImplementationOnce(async (...args) => {
+      entered.resolve(undefined)
+      await release.promise
+      return await createWorkspace(...args)
+    })
+    onTestFinished(() => {
+      off()
+      release.resolve(undefined)
+      create.mockRestore()
+    })
     try {
       expect((await send(webhookOrigin, 'ready', payload)).status).toBe(202)
+      await entered.promise
+      expect(scaffold.ctx.agents.list()).toHaveLength(before)
+      expect(adapter.requests).toHaveLength(0)
+      release.resolve(undefined)
       await completed.promise
     } finally {
+      release.resolve(undefined)
+      create.mockRestore()
       off()
     }
     expect(scaffold.ctx.agents.list()).toHaveLength(before + 1)

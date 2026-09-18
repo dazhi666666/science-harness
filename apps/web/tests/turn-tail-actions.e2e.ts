@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it, onTestFailed } from 'vitest'
 import type { ReplayOverrideDoc } from '@deepseek-ai/dsh-llm-replay'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
-  assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
+  acknowledgeReloadConnectionLoss, assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
   launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
@@ -64,7 +64,8 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
   /** Boot scaffold + page, materializing the sidecar before the replay row installs. */
   async function launch(
     buildOverride?: (sidecarHome: string) => ReplayOverrideDoc,
-    paceMs?: number,
+    // Throughput snapshots require a nonzero interval between replayed chunks.
+    paceMs = 1,
   ): Promise<void> {
     sessionEvents = []
     let overridePath: string | undefined
@@ -80,7 +81,7 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
           replayFixture: FIXTURE,
           ...(overridePath === undefined ? {} : { replayOverride: overridePath }),
           compareReplaySession: overridePath === undefined,
-          ...(paceMs === undefined ? {} : { paceMs }),
+          paceMs,
         },
     )
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
@@ -207,6 +208,15 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
 
     const expanded = await captureStableAria(page, '[class*="centerCol"]', scaffold!.workspaceCwd)
     await compareOrRefreshGolden(USAGE_EXPANDED_EXPECTED, expanded, MODE)
+
+    const warningStart = tripwire.warnings.length
+    await page.reload({ waitUntil: 'load' })
+    await expect.poll(() => timeTrigger.count(), { timeout: 15_000 }).toBe(1)
+    acknowledgeReloadConnectionLoss(tripwire, warningStart)
+    await timeTrigger.click()
+    expect(await timeDialog.count()).toBe(1)
+    expect(await timeDialog.getByText(/tok\/s/).count()).toBe(0)
+    expect(await timeDialog.getByText('Time to first token (TTFT)', { exact: true }).count()).toBe(0)
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   }, 120_000)

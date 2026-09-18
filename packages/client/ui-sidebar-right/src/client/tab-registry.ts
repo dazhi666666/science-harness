@@ -21,8 +21,8 @@
  * builtin resumes when the extension unregisters. Everything else colliding on
  * a kind throws, as does a second registration of an `id`.
  *
- * Thunked copy (`title`, `guide[].title`) is read again on every use, so a
- * language change needs no re-registration.
+ * Thunked copy (`title`, `guide[].title`, `guide[].description`) is read again
+ * on every use, so a language change needs no re-registration.
  */
 import type { ComponentType } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
@@ -57,26 +57,32 @@ const RANKS: Readonly<Record<SidebarRightTabPriority, number>> = {
 /** The band a definition that names none is in. */
 const DEFAULT_BAND: SidebarRightTabPriority = 'extension'
 
-/** One entry box the guide page offers, contributed by the type it opens (picking it opens that type as a page). */
+/** One entry capsule the guide page offers, contributed by the type it opens (picking it opens that type as a page). */
 export interface SidebarRightGuideEntry {
+  /** Stable entry identity within its provider. */
+  readonly id: string
   /** Ascending position among every registered type's entries. */
   readonly order: number
   /**
-   * The box's heading.
-   * @returns the heading in the current language.
+   * The capsule's title.
+   * @returns the title in the current language.
    */
   readonly title: () => string
   /**
-   * One line under the heading.
-   * @returns the line in the current language.
+   * One line under the title on what picking the capsule opens. The guide shows
+   * it only while it lists few enough entries to stay light; a crowded guide
+   * falls back to titles alone, so a type must stand on its title.
+   * @returns the description in the current language.
    */
-  readonly description: () => string
-  /** Optional glyph, drawn at the box's leading edge. */
+  readonly description?: () => string
+  /** Optional glyph, drawn before the title; without one the guide draws its cube placeholder. */
   readonly icon?: ComponentType<IconProps>
 }
 
 /** A guide entry as the registry lists it: with the kind of the type that contributed it, which is what picking it opens. */
 export interface SidebarRightGuideBox extends SidebarRightGuideEntry {
+  /** Active implementation identity used to dispatch the entry renderer. */
+  readonly providerId: string
   readonly kind: string
 }
 
@@ -93,6 +99,8 @@ export interface SidebarRightTabDefinition {
   readonly id: string
   /** Type discriminator: what the tabs of this type are, and what `openTab` names. */
   readonly kind: string
+  /** Each open by kind creates independent content; omission keeps one page per kind in each pane. */
+  readonly multiple?: boolean
   /**
    * Resource-address globs this type recognizes; omit for a page type, which is
    * opened by kind and recognizes no address.
@@ -239,6 +247,8 @@ export class SidebarRightTabRegistry {
    */
   register(definition: SidebarRightTabDefinition): () => void {
     const { id, kind } = definition
+    const entries = definition.guide ?? []
+    if (new Set(entries.map(entry => entry.id)).size !== entries.length) throw new Error(`sidebarRight: duplicate guide entry id in "${id}"`)
     const band = definition.priority ?? DEFAULT_BAND
     if (this.ids.has(id)) throw new Error(`sidebarRight: tab type id "${id}" is already registered`)
     const held = this.kinds.get(kind)
@@ -392,7 +402,7 @@ export class SidebarRightTabRegistry {
   private refresh(): void {
     this.cached = this.active().map(entry => entry.definition)
     this.guideEntries = this.cached
-      .flatMap(definition => (definition.guide ?? []).map(entry => ({ ...entry, kind: definition.kind })))
+      .flatMap(definition => (definition.guide ?? []).map(entry => ({ ...entry, kind: definition.kind, providerId: definition.id })))
       .sort((left, right) => left.order - right.order)
     notifySubscribers(this.listeners, '[ui-sidebar-right] tab registry')
   }

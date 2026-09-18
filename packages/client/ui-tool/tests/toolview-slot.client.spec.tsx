@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, fireEvent } from '@testing-library/react'
 import type { ISession } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import {
   apply as applyChat, inject as injectChat, type ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
-import { SlotTestRuntime, TestRemote, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { SlotTestRuntime, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { apply as applyConversation, inject as injectConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { apply as applyTool, inject as injectTool } from '@deepseek-ai/dsh-client-ui-tool/client'
@@ -34,21 +35,27 @@ beforeEach(() => {
   vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 })
 
-const toolResult = (seq: number, callId: string, name: string, args = '{"command":"make build","description":"Build"}'): ToolResultNode => ({
+const toolResult = (
+  seq: number,
+  callId: string,
+  name: string,
+  args = '{"command":"make build","description":"Build"}',
+  over: Partial<ToolResultNode> = {},
+): ToolResultNode => ({
   kind: 'tool-result', seq, time: seq * 1_000, callId,
   call: { name, argsRaw: args },
   callTime: seq * 1_000 - 500,
-  content: [], isError: false, subCalls: [],
+  content: [], isError: false, subCalls: [], ...over,
 })
 
 /** Test-owned AppFrame role: declares and renders the resident conversation area. */
-type AppRootProps = PropsRenderSlots<'conversation'>
+type AppRootProps = PropsRenderSlots<'main'>
 function AppRoot({ renderSlot }: AppRootProps) {
-  return <>{renderSlot('conversation', {})}</>
+  return <>{renderSlot('main', {}, { entryKey: 'conversation' })}</>
 }
 
 const LAYOUT_CHILDREN = {
-  'conversation': { kind: 'single', scope: 'session-maybe' },
+  'main': { kind: 'keyed', scope: 'root' },
 } as const
 
 /**
@@ -59,14 +66,17 @@ const LAYOUT_CHILDREN = {
 async function bench(nodes: ToolResultNode[]) {
   const runtime = await SlotTestRuntime.create()
   const openWorkspacePath = vi.fn(async () => ({ ok: true, value: { opened: true } }))
-  new TestRemote(runtime.ctx, { session: { openWorkspacePath } })
+  runtime.remote.provideNamespaces({ session: { openWorkspacePath } })
   runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
   const layout = { openDetails: vi.fn(), closeDetails: vi.fn() }
   runtime.ctx.provide('layout', layout)
   const sidebarRight = { openResource: vi.fn<(address: string) => void>() }
   runtime.ctx.provide('sidebarRight', sidebarRight as never)
   runtime.ctx.provide('uiWorkspace', {
-    connectWorkspace: vi.fn(async () => SID),
+    openWorkspace: vi.fn(async (_workspaceId: WorkspaceId, beforeOpen: (id: SessionId) => void) => {
+      beforeOpen(SID)
+    }),
+    openSession: vi.fn(),
   } as never)
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.ctx.provide('locale', locale)
@@ -80,6 +90,7 @@ async function bench(nodes: ToolResultNode[]) {
       prompt: vi.fn<ISession['prompt']>(async () => ({ ok: true, value: { accepted: true } })),
     },
   })
+  await runtime.sessions.retainFor(runtime.ctx, SID, { source: 'mainView' }).ready
   await runtime.root.declare(LAYOUT_CHILDREN, AppRoot)
   await runtime.mount({ inject: [...injectConversation], apply: applyConversation })
   await runtime.mount({ inject: [...injectChat], apply: applyChat })
@@ -101,6 +112,75 @@ describe('keyed toolview hole through the real machinery', () => {
     expect(view.getByText('Build')).toBeTruthy()
     // mystery: no registration under that key → render-site fallback.
     expect(view.getByText('Tool call')).toBeTruthy()
+    await b.runtime.dispose()
+  })
+
+  it('renders Auto denial copy through the real machinery', async () => {
+    const b = await bench([
+      toolResult(
+        3,
+        'bash-1',
+        'bash',
+        '{"command":"rm -rf build","description":"Clean"}',
+        {
+          content: [{ type: 'text', text: 'Tool execution rejected by user' }],
+          isError: true,
+          error: {
+            name: 'AutoReviewDeniedError',
+            code: 'AUTO_REVIEW_DENIED',
+            reason: '  precise scope\r\nwas not authorized  ',
+          },
+        },
+      ),
+    ])
+    const view = b.runtime.renderRoot()
+
+    expect(view.getByText('Rejected by Auto review')).toBeTruthy()
+    expect(view.queryByText('Tool execution rejected by user')).toBeNull()
+    const row = view.container.querySelector<HTMLElement>('[data-expandable]')
+    expect(row).not.toBeNull()
+    fireEvent.click(row!)
+
+    expect(view.queryByText('IN')).toBeNull()
+    expect(view.getByText('OUT')).toBeTruthy()
+    expect(view.getByText('Tool was not executed. Reason: precise scope was not authorized')).toBeTruthy()
+    expect(view.queryByText('Tool execution rejected by user')).toBeNull()
+    await b.runtime.dispose()
+  })
+
+  it('does not let external skill or Cordis keyed rows hide an Auto denial', async () => {
+    const denied = (seq: number, callId: string, name: string) => toolResult(
+      seq,
+      callId,
+      name,
+      '{}',
+      {
+        content: [{ type: 'text', text: 'Tool execution rejected by user' }],
+        isError: true,
+        error: {
+          name: 'AutoReviewDeniedError',
+          code: 'AUTO_REVIEW_DENIED',
+          reason: 'outside the authorized scope',
+        },
+      },
+    )
+    const b = await bench([
+      denied(3, 'skill-1', 'skill'),
+      denied(4, 'cordis-1', 'cordis_define'),
+    ])
+    b.slots.register(
+      { name: 'tool.call.toolview', key: 'skill' },
+      () => <div data-testid="external-skill-row" />,
+    )
+    b.slots.register(
+      { name: 'tool.call.toolview', key: 'cordis_define' },
+      () => <div data-testid="external-cordis-row" />,
+    )
+
+    const view = b.runtime.renderRoot()
+    expect(view.queryByTestId('external-skill-row')).toBeNull()
+    expect(view.queryByTestId('external-cordis-row')).toBeNull()
+    expect(view.getAllByText('Rejected by Auto review')).toHaveLength(2)
     await b.runtime.dispose()
   })
 
@@ -203,7 +283,7 @@ describe('keyed toolview hole through the real machinery', () => {
 describe('registrant declaration injection', () => {
   it('runs a registrant before ui-tool and waits on the actual toolview declaration', async () => {
     const runtime = await SlotTestRuntime.create()
-    new TestRemote(runtime.ctx, {
+    runtime.remote.provideNamespaces({
       session: {
         openWorkspacePath: vi.fn(async () => ({ ok: true, value: { opened: true } })),
       },
@@ -212,7 +292,10 @@ describe('registrant declaration injection', () => {
     runtime.ctx.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
     runtime.ctx.provide('sidebarRight', { openResource: vi.fn() } as never)
     runtime.ctx.provide('uiWorkspace', {
-      connectWorkspace: vi.fn(async () => SID),
+      openWorkspace: vi.fn(async (_workspaceId: WorkspaceId, beforeOpen: (id: SessionId) => void) => {
+        beforeOpen(SID)
+      }),
+      openSession: vi.fn(),
     } as never)
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.ctx.provide('locale', locale)

@@ -105,13 +105,21 @@ supervisor 独立于 Harness 存活，持有本作业的 SQLite 排他所有权�
 
 ## 上游更新接入
 
-当前宿主已接入 DeepSeek Harness `0.1.5-alpha.1`，精确提交为 `5dda764ed3aa172535a7967b06ff95d9cbfe536a`。上游默认分支为 master，绑定为只读 upstream；origin 保持本项目仓库。`UPSTREAM.json` 是当前基线的唯一记录，历史验证 JSON 继续保留原版本。常规更新通过 `platform/upstream.py` 获取差异、准备隔离工作树，完成兼容迁移和验证后再合并主分支，不自动绕过检查。
+当前宿主已接入 DeepSeek Harness `0.1.6-alpha.2`，精确提交为 `ddefc45fbc7f8e46dd73185e68295696d1297887`。上游默认分支为 master，绑定为只读 upstream；origin 保持本项目仓库。`UPSTREAM.json` 是当前基线的唯一记录，历史验证 JSON 继续保留原版本。常规更新通过 `platform/upstream.py` 获取差异、准备隔离工作树，完成兼容迁移和验证后再合并主分支，不自动绕过检查。
 
 上游将原 continuation 管理实现拆成协调器和 activation registry。本地结果交换扩展仍由协调器创建，复用 registry 的真实活实例、父子关系、锁、冷恢复和投递。最后的授权预留移到原生同步投递之前；入箱失败时回滚关联记录。默认关闭和单关系默认值不变。
 
 Session 持久读取返回对象中的 events，而非直接事件数组；相关探针已使用实际新接口。宿主卸载前先通过公开 drain 接口结束 continuable 后代，再释放事件投影，避免读取已卸载的 inbox 状态。V2 到 V3 使用上游相邻版本迁移，原文件不覆盖。新增测试验证旧子会话冷恢复后仍没有自动恢复旧科研授权。
 
 执行数据库仍使用原 schema，公开 Provider SDK 协议仍为 1。两个已有操作、六个产物及其预算/哈希在新宿主下读取、导出后保持一致。外部 Provider 的初始化配置读取在并发打开 SQLite 时暴露了短暂锁竞争；`0.1.1` 对该读取使用与后续连接一致的有界 busy timeout，不扩大权限，也不自动重派未知任务。已有未完成任务仍需保留匹配的旧 Provider 版本。
+
+本轮相对 0.1.5-alpha.1 纳入 1,970 个上游提交。上游新增 maxActiveSubagents 容量控制，默认每个连续父子组织范围最多八个活动子 Agent；角色数量配置不覆盖这个限制。跨分支路径仍经原 activation registry，目标冷恢复也必须取得容量，已有驻留目标不占用新槽。容量不足拒绝投递，释放槽后才可继续，不绕过限制。
+
+agent/created 现为宿主等待的串行初始化。扩展继续在最终同步 enqueue 前复核真实发送者、双方父实例与授权；新增异步初始化间隙内撤销授权的回归，确认不会入箱。scienceResultProject/MaxPairs/MaxPending 是扩展启动时固定值；修改需重启扩展并重新授权，运行时设置不能隐式扩大旧关系。上游 maxActiveSubagents/maxDepth 设置继续按宿主机制生效。
+
+新版 Loader 的 entry.update 仅发起重载，插件 Fiber.await 才表示生命周期工作完成并抛出启动错误。相关卸载测试据此等待，不使用固定 sleep。上游现已直接依赖 Schemastery，因此移除原补丁中重复的包依赖和 tsconfig 引用；补丁已按新基线重新生成，校验见 UPSTREAM.json。Session 保持 V3，执行库保持 schema 2，本轮未增加记录格式迁移。
+
+本轮保留社区 README、操作台、实验层与专用 CI；不启用上游发布和仓库管理工作流。确定性验收包括旧 checkout 生成的真实实验/操作记录在新 checkout 读取、重复请求返回原操作、预算及哈希不变、授权不自动恢复；完整结果见 [validation/upstream-0.1.6.json](validation/upstream-0.1.6.json)。未重新开展真实模型科研评测，其他上游产品界面不作为本项目已全面验证的功能。
 
 ## 可复制的 Provider 入门包
 

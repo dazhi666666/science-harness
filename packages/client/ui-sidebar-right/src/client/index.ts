@@ -18,7 +18,7 @@
  * Tab types register in two stages: the type itself into `ctx.sidebarRightTabs`,
  * its body into the keyed `sidebar.right.pane.tab` seat under the same kind. The
  * guide registers through those stages unmodified, exactly as a type shipped
- * from another package does — `ui-sidebar-textpreview` is the live proof.
+ * from another package does — `ui-sidebar-documentpreview` is the live proof.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-resources/client'
@@ -30,8 +30,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from './contract/slots.ts'
 import { GuideBody, type GuideInjected } from './tabs/guide/GuideBody.tsx'
+import { GuideTitle } from './tabs/guide/GuideTitle.tsx'
 import { ExpandButton } from './shell/ExpandButton.tsx'
 import { RightbarSeat, type SidebarRightInjected } from './shell/SidebarRight.tsx'
+import { RightbarRoot } from './shell/RightbarRoot.tsx'
 import { createSidebarRightController, type SidebarRightController } from './service.ts'
 import { SidebarRightTabRegistry } from './tab-registry.ts'
 import { createSidebarRightStore } from './stores.ts'
@@ -39,6 +41,7 @@ import { en, zh } from './locales.ts'
 import { GUIDE_ID, guideDefinition } from './tabs/guide/definition.ts'
 import { guideTabInfoFactory, tabInfoFactory } from './tab-info.ts'
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
+import { defaultSeed } from './contract/seed.ts'
 
 export type { RightbarSeatProps, SidebarRightInjected, SidebarRightPresentation } from './shell/SidebarRight.tsx'
 export type { GuideBodyProps, GuideInjected } from './tabs/guide/GuideBody.tsx'
@@ -46,7 +49,7 @@ export type { ExpandButtonProps } from './shell/ExpandButton.tsx'
 export type { SidebarRightState, SurfaceState } from './stores.ts'
 export type {
   ISidebarRight, SidebarRightBinding, SidebarRightOpenResourceOptions, SidebarRightOpenTabOptions,
-  SidebarRightPlacement, SurfaceActions,
+  SidebarRightPlacement, SidebarRightCloseHandler, SurfaceActions,
 } from './service.ts'
 export type {
   SidebarRightGuideBox, SidebarRightGuideEntry, SidebarRightTabClaim, SidebarRightTabDefinition,
@@ -54,7 +57,7 @@ export type {
 } from './tab-registry.ts'
 export type {
   SidebarRightTabInfo, SidebarRightTabInjected, UseSidebarRightTabInfo, SidebarRightTabActions,
-  SidebarRightTabMenuOwnerProps, SidebarRightTabNavigation, SidebarRightTabPlacement,
+  SidebarRightTabMenuOwnerProps, SidebarRightTabNavigation, SidebarRightTabPlacement, SidebarRightGuideEntryOwnerProps,
 } from './contract/slots.ts'
 export type {
   SidebarRightNavigationParams, SidebarRightResourceParams, SidebarRightResourceParamsMap,
@@ -65,6 +68,7 @@ export type { FloatRect, PaneId, TabId, TabRecord } from '@deepseek-ai/dsh-clien
 export type { PinResource, SidebarRightNavigator, TabOccurrence } from './tab-domain.ts'
 export type { SidebarRightKey } from './locales.ts'
 export type { OpenContentIntent } from './stores.ts'
+export type { SidebarRightOpenTab } from './tab-inventory.ts'
 
 /** This package's copy namespace. */
 const NS = 'sidebarRight'
@@ -98,7 +102,7 @@ export function apply(ctx: ClientContext): void {
   // its own apply top level for the same reason.
   const t = ctx.locale.bind(NS)
   const tabs = new SidebarRightTabRegistry(ctx)
-  const { controller, adopt } = createSidebarRightController(
+  const { controller, adopt, forget } = createSidebarRightController(
     tabs,
     (address, signal) => { ctx.resources.pin(address, signal) },
   )
@@ -117,7 +121,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-sidebar-right: dictionaries')
 
   ctx.effect(() => {
-    const handle = createSidebarRightStore(() => t('tab.guide.title'))
+    const handle = createSidebarRightStore(() => defaultSeed(tabs))
     // The runtime mints one instance of this handle per session (the scope key
     // is the session id) and caches it per key. Each is adopted as it is minted,
     // so a tab's own action reaches its session's store while another session
@@ -128,11 +132,14 @@ export function apply(ctx: ClientContext): void {
       create: (scopeKey) => {
         const instance = handle.create(scopeKey)
         if (scopeKey !== undefined) adoptions.push(adopt(scopeKey as SessionId, instance))
-        return instance
+        return { ...instance, clearPersisted() {
+          instance.clearPersisted()
+          if (scopeKey !== undefined) forget(scopeKey as SessionId)
+        } }
       },
     }
     const layout: ILayout = ctx.layout
-    const injected: Omit<SidebarRightInjected, 'keyedHooks' | 'occurrence'> = {
+    const injected: Omit<SidebarRightInjected, 'keyedHooks' | 'occurrence' | 'closeTab'> = {
       syncPresentation({ shown, track, fullscreen }) {
         if (shown) layout.openRightbar(track, fullscreen)
         else layout.closeRightbar()
@@ -143,21 +150,31 @@ export function apply(ctx: ClientContext): void {
     }
 
     const disposeTypes = [tabs.register(guideDefinition(t))]
-    const disposeSeat = ctx.slots.inject('rightbar', () => ctx.slots.register({
-      name: 'rightbar',
-      locale: NS,
-      children: {
-        'sidebar.right.pane.tab': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: tabInfoFactory } } },
-        'sidebar.right.pane.tab.title': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: tabInfoFactory } } },
-        'sidebar.right.tab.menu.item': { kind: 'list', scope: 'session' },
-      },
-      store,
-      inject: (sessionId): SidebarRightInjected => ({
-        ...injected,
-        keyedHooks: { tabNavigation: key => controller.tabDomain.occurrence(sessionId, { id: key as TabId }).navigation },
-        occurrence: tab => controller.tabDomain.occurrence(sessionId, tab),
-      }),
-    }, RightbarSeat))
+    const disposeSeat = ctx.slots.inject('rightbar', function* () {
+      yield ctx.slots.register({
+        name: 'rightbar',
+        children: { 'rightbar.session': { kind: 'single', scope: 'session' } },
+      }, RightbarRoot)
+      yield ctx.slots.register({
+        name: 'rightbar.session',
+        locale: NS,
+        children: {
+          'sidebar.right.pane.tab': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: tabInfoFactory } } },
+          'sidebar.right.pane.tab.title': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: tabInfoFactory } } },
+          'sidebar.right.tab.menu.item': { kind: 'list', scope: 'session' },
+        },
+        store,
+        inject: (sessionId): SidebarRightInjected => ({
+          ...injected,
+          closeTab: (tabId) => {
+            try { controller.closeIn(sessionId, tabId) }
+            catch (error) { console.error('Sidebar tab close failed:', error) }
+          },
+          keyedHooks: { tabNavigation: key => controller.tabDomain.occurrence(sessionId, { id: key as TabId }).navigation },
+          occurrence: tab => controller.tabDomain.occurrence(sessionId, tab),
+        }),
+      }, RightbarSeat)
+    })
     // The expand button shares the panel's store: it only needs to know whether
     // the panel is expanded, and to ask for it to be. The header's corner seat
     // is its own place, past the utilities, so showing and hiding it moves
@@ -175,15 +192,22 @@ export function apply(ctx: ClientContext): void {
     const disposeGuide = ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
       name: 'sidebar.right.pane.tab',
       key: GUIDE_ID,
-      locale: NS,
       children: {
+        'sidebar.right.tab.guide.entry': {
+          kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: guideTabInfoFactory } },
+        },
         'sidebar.right.tab.guide': {
           kind: 'chain', scope: 'session', inject: { hooks: { tabInfo: guideTabInfoFactory } },
         },
       },
       inject: () => guideInjected,
     }, GuideBody))
+    const disposeGuideTitle = ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register(
+      { name: 'sidebar.right.pane.tab.title', key: GUIDE_ID },
+      GuideTitle,
+    ))
     return () => {
+      disposeGuideTitle()
       disposeGuide()
       disposeExpand()
       disposeSeat()

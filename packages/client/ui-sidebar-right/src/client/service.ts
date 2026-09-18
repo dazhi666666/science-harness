@@ -24,19 +24,21 @@
  * hand the store one settled intent and record the navigation in the Tab
  * domain. Placement is the caller's option, never a type's property.
  *
- * Wiring follows `LayoutController.attachPanels`: the registration hands the
- * service its store actions, and the service is the face other plugins hold.
+ * The registration adopts Session stores and injects the mounted seat binding;
+ * callers use the service's navigation methods.
  */
+import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { FloatRect, PaneId, TabId, TabRecord } from '@deepseek-ai/dsh-client-ui-dockkit'
-import { activeDockPaneId, canSplit, dockPaneIds, findTabPane, getPane } from '@deepseek-ai/dsh-client-ui-dockkit'
+import { activeDockPaneId, canSplit, findContentTab, dockPaneIds, findTabPane, getPane } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SidebarRightNavigationParams, SidebarRightResourceParams, SidebarRightTabParamsFor } from './contract/params.ts'
 import { pageAddress } from './contract/seed.ts'
 import type { SidebarRightTabClaim, SidebarRightTabRegistry } from './tab-registry.ts'
-import type { SidebarRightState, SurfaceState } from './stores.ts'
+import { canCloseTab, type SidebarRightState, type SurfaceState } from './stores.ts'
 import type { createSidebarRightStore } from './stores.ts'
 import { TabDomain, type PinResource } from './tab-domain.ts'
+import { SidebarTabInventory } from './tab-inventory.ts'
 
 /** The seat's bound action set. */
 export type SurfaceActions = BoundActions<ReturnType<typeof createSidebarRightStore>>
@@ -56,27 +58,32 @@ interface Adoption {
 
 /**
  * Create the public controller and the plugin-private store adoption callback.
- * Adoption subscribes without reconciling; the first store commit creates occurrences.
+ * Adoption reconciles restored records before any seat renders, then follows commits.
  * @param tabs - registered tab types.
  * @param pin - resource retention for an occurrence's lifetime.
- * @returns the controller and a callback releasing exactly its own adoption.
+ * @returns the controller and plugin-owned adoption and scope-removal callbacks.
  */
 export function createSidebarRightController(tabs: SidebarRightTabRegistry, pin: PinResource): {
   controller: SidebarRightController
   adopt: (sessionId: SessionId, store: SidebarRightSurfaceStore) => () => void
+  forget: (sessionId: SessionId) => void
 } {
   const adopted = new Map<SessionId, Adoption>()
-  const controller = new SidebarRightController(tabs, pin, adopted)
+  const inventory = new SidebarTabInventory()
+  const controller = new SidebarRightController(tabs, pin, adopted, inventory.source)
   return {
     controller,
+    forget: (sessionId) => { inventory.remove(sessionId) },
     adopt(sessionId, store) {
       adopted.get(sessionId)?.unsubscribe()
       const sync = (): void => {
         const surface = store.getSnapshot().bySession[sessionId]
+        inventory.update(sessionId, Object.values(surface?.layout.tabs ?? {}))
         if (surface !== undefined) controller.tabDomain.sync(sessionId, surface.layout)
       }
       const adoption: Adoption = { store, unsubscribe: store.subscribe(sync) }
       adopted.set(sessionId, adoption)
+      sync()
       return () => {
         adoption.unsubscribe()
         if (adopted.get(sessionId) === adoption) adopted.delete(sessionId)
@@ -108,11 +115,13 @@ export interface SidebarRightBinding {
 export interface SidebarRightPlacement {
   /** Land a new tab in this pane instead of the active docked one. */
   readonly paneId?: PaneId
+  /** Prefer a new pane for new content; use the target pane when splitting is unavailable. */
+  readonly preferNewPane?: boolean
   /** Take this tab's place — its pane and its strip slot — and close it in the same step. */
   readonly replaceTab?: TabId
   /**
-   * Defaults to `true`: a tab already showing the same (kind, contentId) is
-   * focused and handed `params`. `false` opens another tab regardless.
+   * Resource tabs reveal an existing (kind, contentId) by default; `false`
+   * permits duplicates. Pages always deduplicate within the target pane.
    */
   readonly revealIfOpened?: boolean
 }
@@ -133,6 +142,9 @@ export interface SidebarRightOpenTabOptions<K extends string = string> extends S
 
 /** The scheme every resource address carries; anything else is not a resource this face opens. */
 const RESOURCE_SCHEME = 'dsh-resource://'
+
+/** Synchronous close/replacement hook; resource owners retain any background cleanup. */
+export type SidebarRightCloseHandler = (sessionId: SessionId, tab: TabRecord) => void
 
 /** The outward right-Sidebar face (`ctx.sidebarRight`). */
 export interface ISidebarRight {
@@ -157,7 +169,7 @@ export interface ISidebarRight {
    */
   openTab<K extends string>(kind: K, options?: SidebarRightOpenTabOptions<K>): void
   /**
-   * Close one tab of the mounted session.
+   * Close one tab of the mounted session; the sole docked guide remains open.
    * @param tabId - the tab to close.
    */
   close(tabId: TabId): void
@@ -184,7 +196,7 @@ export interface ISidebarRight {
    * splits.
    * @param paneId - the pane to split; defaults to the active docked pane.
    * @returns the new pane's id, or `undefined` when nothing was split: the pane
-   *   is missing or floating, the budget is spent, or two halves would not fit.
+   *   is missing, floating, or empty, the budget is spent, or two halves would not fit.
    */
   split(paneId?: PaneId): PaneId | undefined
   /**
@@ -202,7 +214,22 @@ export interface ISidebarRight {
 
 /** Cross-plugin right-Sidebar face (ctx.sidebarRight). */
 export class SidebarRightController implements ISidebarRight {
+  /** Open tab metadata across saved and adopted Sessions, independent of visible seats. */
+  readonly openTabs: SidebarTabInventory['source']
   private binding: SidebarRightBinding | undefined
+  private readonly closeHandlers = new Map<string, SidebarRightCloseHandler>()
+
+  /**
+   * Register resource cleanup before explicit removal. Failure preserves the tab.
+   * @param kind - tab kind owned by the registering plugin.
+   * @param handler - saves any background cleanup before returning and allowing removal.
+   * @returns an effect-scoped unregister callback.
+   */
+  registerCloseHandler(kind: string, handler: SidebarRightCloseHandler): () => void {
+    if (this.closeHandlers.has(kind)) throw new Error(`sidebarRight: close handler already registered for ${kind}`)
+    this.closeHandlers.set(kind, handler)
+    return () => { if (this.closeHandlers.get(kind) === handler) this.closeHandlers.delete(kind) }
+  }
 
   /**
    * The Tab domain this controller navigates into; synced from each adopted
@@ -214,13 +241,25 @@ export class SidebarRightController implements ISidebarRight {
    * @param tabs - the tab-type registry consulted to claim an address.
    * @param pin - `ctx.resources.pin`, which the Tab domain holds addresses with.
    * @param adopted - plugin-owned session stores used by occurrence actions.
+   * @param openTabs - plugin-owned metadata source across saved and adopted layouts.
    */
   constructor(
     private readonly tabs: SidebarRightTabRegistry,
     pin: PinResource,
     private readonly adopted = new Map<SessionId, Adoption>(),
+    openTabs: SidebarTabInventory['source'] = new SidebarTabInventory().source,
   ) {
+    this.openTabs = openTabs
     this.tabDomain = new TabDomain(this, pin)
+  }
+
+  /**
+   * Read the committed tabs of a Session so providers can restore their content.
+   * @param sessionId - Session whose layout has been adopted.
+   * @returns its open records, or an empty list before adoption.
+   */
+  tabsIn(sessionId: SessionId): readonly TabRecord[] {
+    return Object.values(this.adopted.get(sessionId)?.store.getSnapshot().bySession[sessionId]?.layout.tabs ?? {})
   }
 
   /**
@@ -286,7 +325,7 @@ export class SidebarRightController implements ISidebarRight {
   }
 
   /**
-   * Close a tab of one session, for the tab's own action; nothing happens
+   * Close a tab of one session, preserving the sole docked guide; nothing happens
    * for a session whose store was never adopted or whose adoption was released.
    * Not part of `ISidebarRight`: the Tab domain's path.
    * @param sessionId - the session the tab is in.
@@ -294,7 +333,16 @@ export class SidebarRightController implements ISidebarRight {
    */
   closeIn(sessionId: SessionId, tabId: TabId): void {
     const actions = this.actionsFor(sessionId)
-    if (actions !== undefined) actions.closeTab(sessionId, tabId)
+    const surface = this.adopted.get(sessionId)?.store.getSnapshot().bySession[sessionId]
+    if (actions === undefined || surface === undefined) return
+    const tab = surface.layout.tabs[tabId]
+    if (tab === undefined || !canCloseTab(surface, tabId)) return
+    this.removeAfterCleanup(sessionId, tab, () => { actions.closeTab(sessionId, tabId) })
+  }
+
+  private removeAfterCleanup(sessionId: SessionId, tab: TabRecord, commit: () => void): void {
+    this.closeHandlers.get(tab.kind)?.(sessionId, tab)
+    commit()
   }
 
   /** Claim a resource and place it in one session; an address outside the scheme or one no type claims throws. */
@@ -319,7 +367,7 @@ export class SidebarRightController implements ISidebarRight {
   ): void {
     const definition = this.tabs.get(kind)
     if (definition === undefined) throw new Error(`sidebarRight: no tab type is registered as "${kind}"`)
-    const address = pageAddress(kind)
+    const address = definition.multiple === true ? `${pageAddress(kind)}/${randomUUID()}` : pageAddress(kind)
     this.place(sessionId, actions, { kind, contentId: address, title: definition.title(address) }, address, options, options.params)
   }
 
@@ -332,22 +380,44 @@ export class SidebarRightController implements ISidebarRight {
     placement: SidebarRightPlacement,
     params: SidebarRightNavigationParams,
   ): void {
-    actions.openContent(sessionId, {
+    const surface = this.adopted.get(sessionId)?.store.getSnapshot().bySession[sessionId]
+      ?? (this.binding?.sessionId === sessionId ? this.binding.surfaces[sessionId] : undefined)
+    const targetPane = surface === undefined ? undefined : placement.paneId ?? activeDockPaneId(surface.layout)
+    const target = targetPane === undefined ? undefined : surface?.layout.nodes[targetPane]
+    const preferNewPane = placement.preferNewPane === true
+      && placement.replaceTab === undefined
+      && surface !== undefined
+      && target?.kind === 'pane'
+      && target.host === 'dock'
+      && target.tabs.length > 0
+      && canSplit(surface.layout)
+      && dockPaneIds(surface.layout).length < 2
+      && this.binding?.sessionId === sessionId
+      && this.binding.canSplitPane(target.id)
+    const commit = (): void => { actions.openContent(sessionId, {
       kind: claim.kind,
       contentId: claim.contentId,
       title: claim.title,
       ...placement.paneId === undefined ? {} : { paneId: placement.paneId },
+      ...preferNewPane ? { preferNewPane: true } : {},
       ...placement.replaceTab === undefined ? {} : { replaceTab: placement.replaceTab },
       ...placement.revealIfOpened === undefined ? {} : { revealIfOpened: placement.revealIfOpened },
-    }, (tabId) => { this.tabDomain.navigate(sessionId, tabId, { address, params }) })
+    }, (tabId) => { this.tabDomain.navigate(sessionId, tabId, { address, params }) }) }
+    const layout = surface?.layout
+    const replaced = placement.replaceTab === undefined ? undefined : layout?.tabs[placement.replaceTab]
+    const revealed = layout === undefined || placement.revealIfOpened === false
+      ? undefined : findContentTab(layout, claim.contentId, claim.kind)
+    if (replaced === undefined || replaced.id === revealed) { commit(); return }
+    this.removeAfterCleanup(sessionId, replaced, commit)
   }
 
   /**
-   * Close one tab of the mounted session.
+   * Close one tab of the mounted session; the sole docked guide remains open.
    * @param tabId - the tab to close.
    */
   close(tabId: TabId): void {
     const { sessionId, actions } = this.require()
+    if (this.adopted.has(sessionId)) { this.closeIn(sessionId, tabId); return }
     actions.closeTab(sessionId, tabId)
   }
 

@@ -3,10 +3,7 @@
     - 'button "Plan a small change: add" [disabled]'
   - img
   - text: Standard mode
-  - button "Session log":
-    - text: Session log
-    - img
-  - button "Open the sidebar":
+  - button "More actions":
     - img
   - tablist:
     - tab "Chat" [selected]
@@ -28,6 +25,7 @@
   - img
   - text: System prompt
 - paragraph: DONE
+- 'button "Open plan: Add `--greeting` flag to CLI"': "Add `--greeting` flag to CLI Plan · Markdown Open"
 - button "Copy":
   - img
 - button "Good response":
@@ -41,15 +39,12 @@
   - text: Ran for {{duration}}
 - text: {{clock}}
 - textbox "Message or run a task, / commands, @ files or sessions"
-- button "Commands":
-  - img
-- button "Add attachment":
+- button "Add files or run commands":
   - img
 - 'button "Access mode, current: Workspace Write"': Workspace Write
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
-- button "4% of context used"
 - button "Send message" [disabled]
 - button "1 turns 2 steps · {{throughput}} tok/s":
   - img
@@ -57,3 +52,4 @@
 - button "10.6K tok · Cache hit 51%":
   - img
   - text: 10.6K tokCache hit 51%
+- button "4% of context used": 4%

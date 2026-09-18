@@ -3,7 +3,7 @@ import {
   type NormalizeContext,
   extractSnapshotSpillPaths,
   normalizeSessionLog,
-  normalizeSessionFormatProvenance,
+  normalizeSessionFormatMetadata,
   normalizeSessionSnapshot,
   normalizeSessionSnapshots,
   normalizeStdout,
@@ -523,12 +523,35 @@ describe('normalizeSessionLog', () => {
     expect(out).toContain('"operation":"resume"')
   })
 
+  it('normalizes subagent catalog child creation clocks', () => {
+    const catalog = JSON.stringify({
+      type: 'subagent/catalog',
+      seq: 2,
+      time: 5,
+      data: {
+        version: 0,
+        childId: 'child',
+        childCreatedAt: 123,
+        mode: 'one-shot',
+      },
+    })
+    const out = normalizeSessionLog(`${header({})}\n${catalog}\n`, ctx)
+    expect(out).toContain('"childCreatedAt":0')
+  })
+
   it('handles complete envelopes when optional normalized fields are absent', () => {
     const bareHeader = JSON.stringify({ type: 'session', id: 's' })
     const bareHook = JSON.stringify({ type: 'hook/result', seq: 2, time: 5, data: { decision: 'allow' } })
     const nullDataHook = JSON.stringify({ type: 'hook/result', seq: 3, time: 6, data: null })
-    const out = normalizeSessionLog(`${bareHeader}\n${bareHook}\n${nullDataHook}\n`, ctx)
+    const bareCatalog = JSON.stringify({
+      type: 'subagent/catalog',
+      seq: 4,
+      time: 7,
+      data: { version: 0 },
+    })
+    const out = normalizeSessionLog(`${bareHeader}\n${bareHook}\n${nullDataHook}\n${bareCatalog}\n`, ctx)
     expect(out).toContain('"decision":"allow"')
+    expect(out).toContain('"version":0')
     expect(out).not.toContain('durationMs')
   })
 })
@@ -595,6 +618,64 @@ describe('normalizeSessionSnapshot', () => {
       }),
       '',
     ].join('\n'))
+  })
+
+  it('preserves adjacent catalog facts in parent event order', () => {
+    const raw = [
+      JSON.stringify({ type: 'session', version: 0 }),
+      JSON.stringify({ type: 'tool/call', data: { callId: 'parallel' } }),
+      JSON.stringify({
+        type: 'subagent/catalog',
+        data: { version: 0, childId: '{{session:3}}', childCreatedAt: 123, mode: 'one-shot' },
+      }),
+      JSON.stringify({
+        type: 'subagent/catalog',
+        data: { version: 0, childId: '{{session:2}}', childCreatedAt: 124, mode: 'one-shot' },
+      }),
+      JSON.stringify({ type: 'tool/result', data: { callId: 'parallel' } }),
+    ].join('\n') + '\n'
+    const normalized = normalizeSessionSnapshot(raw, ctx)
+    expect(normalized.indexOf('{{session:3}}')).toBeLessThan(normalized.indexOf('{{session:2}}'))
+    expect(normalized).toContain('"childCreatedAt":0')
+  })
+
+  it('preserves malformed catalog payloads', () => {
+    const raw = [
+      JSON.stringify({ type: 'session', version: 0 }),
+      JSON.stringify({
+        type: 'subagent/catalog',
+        data: { version: 0, childId: '{{session:2}}', childCreatedAt: 1, mode: 'one-shot' },
+      }),
+      JSON.stringify({
+        type: 'subagent/catalog',
+        data: { version: 0, childId: 3, childCreatedAt: 3, mode: 'one-shot' },
+      }),
+    ].join('\n') + '\n'
+    const normalized = normalizeSessionSnapshot(raw, ctx)
+    expect(normalized).toContain('{{session:2}}')
+    expect(normalized).toContain('"childId":3')
+  })
+
+  it.each([
+    { sources: [0, 1] },
+    { sources: [0, 2] },
+  ])('preserves source references and catalog order: $sources', ({ sources }) => {
+    const records = [
+      { type: 'session', version: 2 },
+      { type: 'tool/call', data: { callId: 'parallel' } },
+      { type: 'subagent/catalog', data: { childId: 'child-z', childCreatedAt: 1, version: 0, mode: 'one-shot' } },
+      { type: 'subagent/catalog', data: { childId: 'child-a', childCreatedAt: 2, version: 0, mode: 'one-shot' } },
+      { type: 'tool/result', data: { callId: 'parallel' }, sourceEventSeqs: sources, surfaceOp: 'append' },
+    ]
+    const normalized = normalizeSessionSnapshot(records.map(record => JSON.stringify(record)).join('\n'), ctx)
+    expect(normalized).toBe([
+      records[0],
+      records[1],
+      { ...records[2], data: { ...records[2]?.data, childCreatedAt: 0 } },
+      { ...records[3], data: { ...records[3]?.data, childCreatedAt: 0 } },
+      records[4],
+    ].map(record => JSON.stringify(record)).join('\n') + '\n')
+    expect(normalizeSessionSnapshot(normalized, ctx)).toBe(normalized)
   })
 
   it('migrates and re-packs multi-session fixtures after relationship-preserving id redaction', () => {
@@ -677,8 +758,8 @@ describe('normalizeSessionSnapshot', () => {
       type: 'session-log-deepseek/delivery-accepted',
       data: { sessionId: 's', throughSeq: 4, sessionFormatVersion: version },
     })
-    expect(normalizeSessionFormatProvenance(event(0))).toBe(event(0))
-    expect(normalizeSessionFormatProvenance(event(3))).not.toBe(normalizeSessionFormatProvenance(event(0)))
+    expect(normalizeSessionFormatMetadata(event(0))).toBe(event(0))
+    expect(normalizeSessionFormatMetadata(event(3))).not.toBe(normalizeSessionFormatMetadata(event(0)))
   })
 
   it('preserves opaque generation qualifiers and their lookalikes', () => {
@@ -760,7 +841,7 @@ describe('normalizeSessionSnapshot', () => {
       type: 'user/message',
       data: { source: { kind: 'session-reference', form: 'recall', version: 1, references: {} } },
     })
-    expect(normalizeSessionFormatProvenance(raw)).toBe(raw)
+    expect(normalizeSessionFormatMetadata(raw)).toBe(raw)
   })
 
   it('keeps session-reference lookalikes outside Message source positions unchanged', () => {
@@ -781,12 +862,12 @@ describe('normalizeSessionSnapshot', () => {
       '',
     ].join('\n')
 
-    const normalized = normalizeSessionFormatProvenance(lookalike).split('\n')
+    const normalized = normalizeSessionFormatMetadata(lookalike).split('\n')
     expect(JSON.parse(normalized[0] as string)).not.toHaveProperty('version')
     expect(normalized[1]).toBe(lookalike.split('\n')[1])
   })
 
-  it('projects persisted provenance ranges back to logical seq arrays', () => {
+  it('projects persisted source-event ranges back to logical seq arrays', () => {
     const raw = [
       JSON.stringify({ type: 'session', version: 0 }),
       JSON.stringify({

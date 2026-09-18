@@ -16,11 +16,12 @@
  *   actions that are gestures on the layout itself; this seat is for actions that
  *   mean something about the tab's content.
  *
- * TYPE HOME RATIONALE: this package declares all four at runtime, and anything
+ * TYPE HOME RATIONALE: this package declares these slots at runtime, and anything
  * registering into one already depends on it for the declaration. The types
  * therefore live with their declarer.
  */
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type { RightbarOwnerProps } from '@deepseek-ai/dsh-client-ui-layout/client'
 // The locale plugin's own merge carries the shared `common` vocabulary that the
 // lookup chain consults after this namespace misses.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -37,6 +38,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 
   interface SlotMap {
+    /** Session content selected by the root-scoped right Sidebar controller. */
+    'rightbar.session': { kind: 'single'; scope: 'session'; owner: RightbarOwnerProps }
     /**
      * One tab's body, dispatched with the `id` of the type in force for
      * `tab.kind`. A tab type registers here under its definition's `id` and
@@ -75,6 +78,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
       hookContext: UseSidebarRightTabInfo
       inject: { hooks: { tabInfo: SlotHookFactory<'sidebar.right.tab.guide', UseSidebarRightTabInfo> } }
     }
+    /** One provider's guide card, with the standard card as the owner's fallback. */
+    'sidebar.right.tab.guide.entry': {
+      kind: 'keyed'
+      scope: 'session'
+      owner: SidebarRightGuideEntryOwnerProps
+      hookContext: UseSidebarRightTabInfo
+      inject: { hooks: { tabInfo: SlotHookFactory<'sidebar.right.tab.guide.entry', UseSidebarRightTabInfo> } }
+    }
     /**
      * Extra items at the end of one tab's actions menu, in registration order.
      * Entries decide their own visibility from the tab they are given. Without a
@@ -102,7 +113,9 @@ export interface SidebarRightTabNavigation {
 export interface SidebarRightTabPlacement {
   /** Land a new tab in this pane instead. */
   readonly paneId?: PaneId
-  /** Defaults to `true`: a tab already showing the same content is focused instead of a second one opening. */
+  /** Prefer a new pane for new content; use the target pane when splitting is unavailable. */
+  readonly preferNewPane?: boolean
+  /** Resource tabs reveal existing content by default; `false` permits duplicates. Pages always deduplicate within the target pane. */
   readonly revealIfOpened?: boolean
   /** `true` opens in this tab's place — its pane and strip slot — and closes this tab in the same step. */
   readonly replaceTab?: boolean
@@ -167,4 +180,12 @@ export interface SidebarRightTabMenuOwnerProps {
    * over content the action may have just replaced.
    */
   dismiss: () => void
+}
+
+/** Resolved guide copy and entry identity supplied to a provider's card renderer. */
+export interface SidebarRightGuideEntryOwnerProps {
+  readonly entryId: string
+  readonly kind: string
+  readonly title: string
+  readonly description?: string
 }

@@ -2,13 +2,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import {
-  SlotTestRuntime, TestRemote, stubSettingsScope, usePinnedBrowserLanguages,
+  SlotTestRuntime, stubSettingsScope, usePinnedBrowserLanguages,
 } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import {
   apply as applyConversation, inject as injectConversation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -42,18 +43,25 @@ async function bench() {
       : stubSettingsScope().scope,
   } as never)
   runtime.ctx.provide('layout', { openRightbar: vi.fn(), closeRightbar: vi.fn() } as never)
-  runtime.ctx.provide('sidebarRight', { openResource: vi.fn() } as never)
+  runtime.ctx.provide('sidebarRight', { openResource: vi.fn(), openTab: vi.fn() } as never)
+  runtime.ctx.provide('sidebarRightTabs', { register: vi.fn(() => () => {}) } as never)
+  runtime.ctx.provide('resources', { register: vi.fn(() => () => {}) } as never)
+  const openSession = vi.fn<(id: SessionId) => void>()
   runtime.ctx.provide('uiWorkspace', {
-    connectWorkspace: vi.fn(async () => SID),
+    openWorkspace: vi.fn(async (_workspaceId: WorkspaceId, beforeOpen: (id: SessionId) => void) => {
+      beforeOpen(SID)
+      openSession(SID)
+    }),
+    openSession,
   } as never)
-  new TestRemote(runtime.ctx, {
+  runtime.remote.provideNamespaces({
     session: { openWorkspacePath: vi.fn(async () => ({ ok: true, value: { opened: true } })) },
   })
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)
   await runtime.root.declare({
-    'conversation': { kind: 'single', scope: 'session-maybe' },
+    'main': { kind: 'keyed', scope: 'root' },
     'conversation.approval.detail': { kind: 'single', scope: 'session' },
     'settings.general.item': { kind: 'list', scope: 'root' },
   }, (_props: { renderSlot?: unknown }) => null)
@@ -120,23 +128,24 @@ describe('Chat apply wiring', () => {
     await b.chat.dispose()
     expect(b.runtime.slots.entries('conversation.view')).toHaveLength(0)
     expect(b.runtime.slots.spec('conversation.chat.node')).toBeUndefined()
-    expect(b.runtime.slots.entries('conversation')).toHaveLength(1)
+    expect(b.runtime.slots.entries('main').map(row => row.options.key)).toEqual(['conversation'])
+    expect(b.runtime.slots.entries('main.conversation')).toHaveLength(1)
     expect(b.runtime.ctx.get('uiConversation')).toBeDefined()
     await b.runtime.dispose()
   })
 
   it('keeps the Chat standard source total while its target enters and leaves', async () => {
     const b = await bench()
-    await b.runtime.sessions.add({ id: SID }, { current: false })
-    const binding = b.runtime.sessions.binding(SID)
-    if (binding === undefined) throw new Error('Chat source test Session binding is unavailable')
+    await b.runtime.sessions.add({ id: SID })
+    using reference = b.runtime.sessions.retain(SID)
+    const binding = reference.binding
     const resolveSource = (owner: SessionBinding): ObservableSnapshot<ChatSnapshot> => {
       const contribution = b.sourceDescriptor.resolve(owner) as {
         hooks: { chat: ObservableSnapshot<ChatSnapshot> }
       }
       return contribution.hooks.chat
     }
-    const source = b.runtime.ctx.uiSession.adapter.resolve(SID)!.hooks.chat as
+    const source = b.runtime.ctx.uiSession.adapter.bindingSource(reference).getSnapshot().hooks.chat as
       ObservableSnapshot<ChatSnapshot>
     expect(resolveSource(binding)).toBe(source)
     expect(resolveSource(binding)).toBe(source)

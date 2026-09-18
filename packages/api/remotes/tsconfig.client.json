@@ -48,6 +48,9 @@
       "path": "../../interaction/commands"
     },
     {
+      "path": "../../interaction/permission-presets"
+    },
+    {
       "path": "../../llm/llm"
     },
     {
@@ -79,6 +82,18 @@
     },
     {
       "path": "../../typert/protocol"
+    },
+    {
+      "path": "../../feedback/command-feedback"
+    },
+    {
+      "path": "../terminal-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../../boot/plugin-manager"
+    },
+    {
+      "path": "../../document/office-to-pdf"
     }
   ]
 }

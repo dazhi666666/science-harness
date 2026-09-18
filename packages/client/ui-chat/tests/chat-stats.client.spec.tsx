@@ -161,9 +161,6 @@ describe('StatsPills', () => {
   it('renders the counts reading and usage pill and hides a brand-new empty session', () => {
     const { source } = makeSource({ nodes: [assistant(1, 1)] })
     const view = render(<StatsPills {...props(source)} />)
-    // InputBar's `.root:has([data-composer-stats])` bottom-clearance rule keys
-    // off this attribute: present exactly while the row renders.
-    expect(view.container.querySelector('[data-composer-stats]')).toBeTruthy()
     // No timing on the fixture: the speed segment drops out and the dialog
     // would have no rows, so the counts reading stays a static pill (no button).
     expect(view.getByText('1 turns 1 steps').closest('button')).toBeNull()
@@ -179,7 +176,6 @@ describe('StatsPills', () => {
       contextPressure: {},
     })} />)
     expect(emptyView.container.textContent).toBe('')
-    expect(emptyView.container.querySelector('[data-composer-stats]')).toBeNull()
   })
 
   it.each([
@@ -257,7 +253,8 @@ describe('StatsPills', () => {
     expect(tokens.textContent).toContain('Cache hit90%')
     expect(tokens.textContent).toContain('Uncached input10 tok')
     expect(tokens.textContent).toContain('Cached input90 tok')
-    expect(tokens.textContent).toContain('Cache write0 tok')
+    // A session that never wrote cache drops the row rather than showing 0.
+    expect(tokens.textContent).not.toContain('Cache write')
     expect(tokens.textContent).toContain('Output5 tok')
     // The time split lives on the counts pill's own dialog, not here.
     expect(dialog.textContent).not.toContain('LLM time')
@@ -428,6 +425,9 @@ describe('StatsPills', () => {
       },
     })} />)
     expect(view.getAllByRole('button')[0]!.textContent).toBe('207 tok·Cache hit 45%')
+    // A session that did write cache keeps the row, exact.
+    fireEvent.click(view.getAllByRole('button')[0]!)
+    expect(view.getByRole('dialog').textContent).toContain('Cache write100 tok')
   })
 
   it('renders ZERO times during streaming chunk frames (RFC hard acceptance)', () => {

@@ -7,8 +7,15 @@
  * cannot compose a glyph outside a link. Design sources:
  * ic_globe_language_outline_20, ic_code_outline_20, ic_folder_outline_20,
  * ic_photo_outline_20, ic_paper_doc_outline_20, ic_paper_outline_20.
+ *
+ * A `url` glyph whose destination names a well-known site is that site's own
+ * mark instead of the globe (`SiteGlyph.tsx`); every mark keeps the same
+ * currentColor-only rule.
  */
 import type { ReactNode } from 'react'
+import { classifyFileType, fileExtension } from './FileTypeIcon.tsx'
+import { isCodeFileType, isLinkCodeExtension } from './code-file-types.ts'
+import { siteGlyph } from './SiteGlyph.tsx'
 import type { IconProps } from './icons/props.ts'
 
 /**
@@ -22,23 +29,13 @@ export type LinkIconKind = 'url' | 'folder' | 'code' | 'image' | 'document' | 'o
 /** Props for {@link LinkIcon}: the category plus the shared icon sizing seat. */
 export interface LinkIconProps extends IconProps {
   kind: LinkIconKind
+  /**
+   * Destination of a `url` link. A well-known site draws its own mark, so
+   * callers that know the destination should pass it; anything else keeps the
+   * globe. Other kinds ignore it — their destination is a path, not a site.
+   */
+  href?: string | undefined
 }
-
-/** Code, web, and data extensions: all three categories share the code glyph. */
-const CODE_EXTENSIONS = new Set([
-  'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'cts', 'mts', 'css', 'scss', 'sass', 'less',
-  'html', 'htm', 'vue', 'svelte', 'astro', 'json', 'jsonc', 'json5', 'yaml', 'yml',
-  'toml', 'xml', 'ini', 'env', 'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd',
-  'py', 'pyi', 'rb', 'rs', 'go', 'java', 'kt', 'kts', 'c', 'cc', 'cpp', 'cxx',
-  'h', 'hh', 'hpp', 'cs', 'php', 'swift', 'sql', 'csv', 'tsv', 'proto', 'graphql',
-  'gql', 'lua', 'r', 'pl', 'scala', 'clj', 'cljs', 'ex', 'exs', 'erl', 'hs', 'dart',
-])
-
-const IMAGE_EXTENSIONS = new Set([
-  'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'avif', 'bmp', 'ico', 'tif', 'tiff', 'heic', 'heif',
-])
-
-const DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'])
 
 /**
  * Derive a file path's link-icon category from its extension. Unknown and
@@ -47,13 +44,24 @@ const DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt',
  * @returns The file's glyph category; never `url` or `folder`.
  */
 export function classifyLinkPath(path: string): LinkIconKind {
-  const name = path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1)
-  const dot = name.lastIndexOf('.')
-  if (dot < 0) return 'other'
-  const extension = name.slice(dot + 1).toLowerCase()
-  if (CODE_EXTENSIONS.has(extension)) return 'code'
-  if (IMAGE_EXTENSIONS.has(extension)) return 'image'
-  return DOCUMENT_EXTENSIONS.has(extension) ? 'document' : 'other'
+  const type = classifyFileType(path)
+  const extension = fileExtension(path)
+  if (isCodeFileType(type)) return isLinkCodeExtension(extension) ? 'code' : 'other'
+  if (extension === '') return 'other'
+  switch (type) {
+    case 'code':
+    case 'html': return 'code'
+    case 'image': return 'image'
+    case 'excel':
+    case 'pdf':
+    case 'ppt':
+    case 'word': return 'document'
+    case 'markdown':
+    case 'other':
+    case 'video': return 'other'
+    /* v8 ignore next -- classifyFileType returns a closed union exhausted above */
+    default: return assertNever(type)
+  }
 }
 
 const GlobeGlyph = ({ size, className }: IconProps) => (
@@ -136,13 +144,14 @@ function assertNever(value: never): never {
 
 /**
  * Render the leading glyph for one clickable artifact link.
- * @param props - The link category, optional size (default 14px — the inline
- * link text size these glyphs sit beside), and optional CSS class.
+ * @param props - The link category, the optional destination that can select a
+ * site mark, optional size (default 14px — the inline link text size these
+ * glyphs sit beside), and optional CSS class.
  * @returns The category's SVG glyph, riding currentColor.
  */
-export function LinkIcon({ kind, size = 14, className }: LinkIconProps): ReactNode {
+export function LinkIcon({ kind, href, size = 14, className }: LinkIconProps): ReactNode {
   switch (kind) {
-    case 'url': return <GlobeGlyph size={size} className={className} />
+    case 'url': return siteGlyph({ href, size, className }) ?? <GlobeGlyph size={size} className={className} />
     case 'folder': return <FolderGlyph size={size} className={className} />
     case 'code': return <CodeGlyph size={size} className={className} />
     case 'image': return <PhotoGlyph size={size} className={className} />
