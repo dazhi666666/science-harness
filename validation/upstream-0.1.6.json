@@ -310,6 +310,11 @@
       "exitCode": 1,
       "passed": 31,
       "failed": 10
+    },
+    {
+      "command": "pnpm run typecheck",
+      "exitCode": 0,
+      "scope": "Full upstream host build and client project typecheck"
     }
   ],
   "documentationDiagnostics": {
@@ -350,5 +355,7 @@
     "integrations/ai4science/cross-branch/cross-branch.spec.ts": "a1155a7b27936c095d56dea35b379d46198dcc4b9b33bdef6290ef11bc92d9ed",
     "integrations/ai4science/cross-branch/fixture.ts": "eda12a251ec18fb63461b6a1668f7660496ca72eff423f4388a9ebd3551fdf0f",
     "integrations/ai4science/platform/examples/local.config.json": "be086060e284d43b49e7c72e62559892b523115293f7a864544e11b084e98598"
-  }
+  },
+  "integrationCommit": "5923aa67db0eaf00ddf6cad09fd563586f658305",
+  "commitHooks": "Passed translation checks for changed pairing records, archived notes, staged lint, third-party notices, whitespace and vendor guard. Full-corpus document diagnostics remain as recorded."
 }
