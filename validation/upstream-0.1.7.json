@@ -160,6 +160,6 @@
     "note": "The old-pin refusal was exercised directly: cli-check rejected a deployment carrying the previous baseline with a schema error before any migration. No dual-checkout record replay was rerun; session-format and execution-schema migration coverage comes from the platform suites.",
     "oldPinRejectedBeforeExplicitUpdate": true
   },
-  "integrationCommit": "7a635f625235b4078ede58fca1c3e277586d5ea8",
+  "integrationCommit": "1167d293bf7d5c2f8c5f49ac9776f561b1533002",
   "commitHooks": "Not run on this host; integration branch prepared in an isolated worktree."
 }
