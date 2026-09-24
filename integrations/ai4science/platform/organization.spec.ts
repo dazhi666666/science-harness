@@ -125,7 +125,7 @@ it('model tool calls create a configured role at runtime with configured model a
       .some(
         (e) =>
           e.type === 'tool/result' &&
-          e.data.message.content.some((b) => b.toolCallId === 'dynamic' && !b.isError),
+          e.data.message.toolCallId === 'dynamic' && !e.data.message.isError,
       ),
   ).toBe(true)
   await w.org.close(w.root.agent)

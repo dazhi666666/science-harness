@@ -45,7 +45,7 @@ def main():
     if args.regressions:
         run([sys.executable, here.parent / 'platform/check.py', '--output', out / 'regressions'])
     (out / 'results.json').write_text(json.dumps({'success': True, 'baseline': json.loads((repo / 'UPSTREAM.json').read_text())['upstreamCommit'],
-        'startingCommunityCommit': subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).strip(),
+        'startingCommunityCommit': subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True, encoding='utf-8').strip(),
         'independentInstall': str(independent), 'installedModule': installed['installedModule'], 'installationChecks': installed,
         'modelRequests': 0, 'existingCoreModified': False, 'sourceSHA256': {str(p.relative_to(repo)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(here.rglob('*')) if p.is_file() and '__pycache__' not in p.parts},
         'records': records}, indent=2) + '\n')

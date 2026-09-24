@@ -142,7 +142,7 @@ export function ownerPresent(config, jobId) {
   }
 }
 
-export function observation(config, row) {
+export function observation(config, row, db) {
   if (!row) return { state: 'not_found', detail: 'No operation in the external job journal' }
   const progress = {
     jobId: row.job_id,
@@ -172,11 +172,16 @@ export function observation(config, row) {
       progress,
       detail: 'Durable submission is within the bounded supervisor startup interval',
     }
-  if (!ownerPresent(config, row.job_id))
+  if (!ownerPresent(config, row.job_id)) {
+    // The supervisor releases its lock only after committing the terminal record,
+    // so a row read that raced that commit is stale; re-read before declaring loss.
+    const fresh = db.prepare('SELECT * FROM jobs WHERE job_id=?').get(row.job_id)
+    if (fresh && terminal(fresh.state)) return observation(config, fresh, db)
     return {
       state: 'unknown',
       progress,
       detail: 'No active supervisor ownership; never relaunch an uncertain job automatically',
     }
+  }
   return { state: row.state === 'starting' ? 'accepted' : 'running', progress }
 }

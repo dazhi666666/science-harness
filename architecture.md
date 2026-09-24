@@ -105,7 +105,7 @@ supervisor 独立于 Harness 存活，持有本作业的 SQLite 排他所有权�
 
 ## 上游更新接入
 
-当前宿主已接入 DeepSeek Harness `0.1.6-alpha.2`，精确提交为 `ddefc45fbc7f8e46dd73185e68295696d1297887`。上游默认分支为 master，绑定为只读 upstream；origin 保持本项目仓库。`UPSTREAM.json` 是当前基线的唯一记录，历史验证 JSON 继续保留原版本。常规更新通过 `platform/upstream.py` 获取差异、准备隔离工作树，完成兼容迁移和验证后再合并主分支，不自动绕过检查。
+当前宿主已接入 DeepSeek Harness `0.1.7-rc.1`，精确提交为 `46a7f68b0922371ce7144b668b90e377d8e799f4`。上游默认分支为 master，绑定为只读 upstream；origin 保持本项目仓库。`UPSTREAM.json` 是当前基线的唯一记录，历史验证 JSON 继续保留原版本。常规更新通过 `platform/upstream.py` 获取差异、准备隔离工作树，完成兼容迁移和验证后再合并主分支，不自动绕过检查。
 
 上游将原 continuation 管理实现拆成协调器和 activation registry。本地结果交换扩展仍由协调器创建，复用 registry 的真实活实例、父子关系、锁、冷恢复和投递。最后的授权预留移到原生同步投递之前；入箱失败时回滚关联记录。默认关闭和单关系默认值不变。
 

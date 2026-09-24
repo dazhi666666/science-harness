@@ -19,6 +19,12 @@ import { serialModelStreams } from './model-limit.ts'
 import { saveAnalysis, saveReport } from './analysis.ts'
 import { assertDecisionMatches, assertReportGate, decisionSchema, operationsSchema, missingReportFacts } from './policy.ts'
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    plugin: { readonly kind: 'plugin'; readonly plugin: string; readonly form?: string; readonly summary?: string }
+  }
+}
+
 const hostVersion = JSON.parse(readFileSync(new URL('../../../UPSTREAM.json', import.meta.url), 'utf8')) as {upstreamCommit:string;hostPatchSHA256:string}
 
 export const name = 'ai4science-first-loop'

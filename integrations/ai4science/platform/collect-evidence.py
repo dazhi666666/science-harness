@@ -37,18 +37,18 @@ def collect(sources, output):
                 path = parent / name
                 if name == 'node_modules' or path.is_symlink():
                     dirs.remove(name)
-                    manifest['skipped'].append(str(Path(source.name) / path.relative_to(source)))
+                    manifest['skipped'].append((Path(source.name) / path.relative_to(source)).as_posix())
             for name in sorted(files):
                 path = parent / name
                 relative = Path(source.name) / path.relative_to(source)
                 if not stat.S_ISREG(path.lstat().st_mode):
-                    manifest['skipped'].append(str(relative))
+                    manifest['skipped'].append(relative.as_posix())
                     continue
                 target = output / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(path, target, follow_symlinks=False)
                 manifest['files'].append({
-                    'path': str(relative), 'bytes': target.stat().st_size,
+                    'path': relative.as_posix(), 'bytes': target.stat().st_size,
                     'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
                 })
     manifest['files'].sort(key=lambda item: item['path'])

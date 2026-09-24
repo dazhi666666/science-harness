@@ -78,7 +78,7 @@ for (const state of ['running', 'idle', 'inactive'] as const) {
     await ctx.subagents.sendMessage(world.root.agent, world.rb.id, text('Authorize the reverse exact science peer'), { signal: signal() })
     world.gateA.release(); world.gateB.release()
     for (const [parent, callId] of [[world.ra, 'consent-a'], [world.rb, 'consent-b']] as const) {
-      await vi.waitFor(() => expect(parent.session.snapshotEvents().some(event => event.type === 'tool/result' && event.data.message.content.some(block => block.toolCallId === callId && !block.isError))).toBe(true))
+      await vi.waitFor(() => expect(parent.session.snapshotEvents().some(event => event.type === 'tool/result' && event.data.message.toolCallId === callId && !event.data.message.isError)).toBe(true))
     }
     let saved: Measurement | undefined
     let sent: string | undefined

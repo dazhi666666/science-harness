@@ -1,0 +1,165 @@
+{
+  "status": "passed-local-functional-checks",
+  "date": "2026-09-24",
+  "previousCommunityCommit": "b1a7d7d0472fecd51a2f8acd2450c7a0bd6814d3",
+  "previousUpstreamCommit": "ddefc45fbc7f8e46dd73185e68295696d1297887",
+  "upstreamCommit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+  "upstreamVersion": "0.1.7-rc.1",
+  "upstreamBranch": "master",
+  "upstreamNewCommits": 1617,
+  "hostModified": true,
+  "hostPatchSHA256": "d2e3256145a45dc9515e233bf86dd037478b03d997d4459aa23e651c6432c5ec",
+  "hostPatchReverseApplyCheck": "passed",
+  "sessionFormatVersion": 4,
+  "executionSchemaVersion": 2,
+  "modelRequests": 0,
+  "githubCI": "pending integration push",
+  "tests": {
+    "platform": 55,
+    "platformSkipped": 1,
+    "crossBranch": 15,
+    "minimal": 5,
+    "teams": 5,
+    "firstLoop": 20,
+    "upstreamContinuationAndTeam": 242,
+    "externalJob": 4,
+    "externalJobSkipped": 1,
+    "exampleProvider": 4,
+    "totalVitestAndNodeTests": 350,
+    "evidenceCollectorPythonTests": 3
+  },
+  "cli": {
+    "platform": {
+      "commands": 29,
+      "assertions": 25
+    },
+    "experiment": {
+      "commands": 29,
+      "assertions": 20
+    },
+    "external": {
+      "records": 5,
+      "independentInstall": true
+    },
+    "example": {
+      "commands": 14,
+      "independentWorkloadExecutions": 1
+    }
+  },
+  "compatibilityChanges": [
+    "Subagent capacity moved from settings-injected values to host Volatile<number> fields; the science-result project/pair/pending fields are declared on the new inferred schema and the local settingsSource/dsh-settings injection seam was retired.",
+    "Tool results are first-class tool-role messages; toolCallId, isError and content are read from the message instead of a removed 'tool-result' content-block variant.",
+    "The catch-all 'plugin' message-source kind was removed upstream; the fork declares its science notice source kind locally through declaration merging.",
+    "Session format rose to V4; the fork migration test now expects session.v4.jsonl while the session.v2.jsonl predecessor remains the migration input.",
+    "Team member status simplified to running|inactive; the fork's assertions no longer expect an idle member state.",
+    "tools.restrict() now validates named tools against the live registry at call time; role allowlists continue to name only registered platform tools.",
+    "The external local-job Provider re-reads a job row after observing a released supervisor lock, closing a read-then-check window in which a committed terminal record could be reported as unknown.",
+    "Community README, dashboard, experiment layer and local checks remain; upstream release and administration workflows are not enabled."
+  ],
+  "platformFixes": [
+    "first-loop analysis normalizes path separators before escape and evidence-link comparisons; POSIX-style prefix checks missed Windows relative paths.",
+    "Python subprocess helpers decode UTF-8 explicitly; the host locale default (GBK) broke several check scripts.",
+    "External-job and platform tests treat POSIX signal assertions as platform-specific; Node reports null exit signals on Windows.",
+    "Evidence collection records manifest paths with forward slashes on every host.",
+    "Test and build entry points resolve npm, pnpm and python3 through executable shims where the host lacks .exe aliases."
+  ],
+  "initialFailures": [
+    {
+      "command": "pnpm exec vitest run --config integrations/ai4science/external-job/vitest.config.ts",
+      "outcome": "The scripted Agent run intermittently observed state 'unknown' after the worker finished all iterations. The provider observation read the job row before checking supervisor-lock ownership, so a terminal commit landing between the two reads was reported as lost ownership. The observation now re-reads the row after a released lock before declaring unknown; the full external-job suite passes."
+    },
+    {
+      "command": "python integrations/ai4science/platform/check.py --output .ai4science/upstream-platform-08",
+      "outcome": "cli-check rejected a deployment whose baseline still held the previous pin; updating the example deployment baseline to the new pin resolved it. The rejection itself confirmed the old-pin-refusal contract."
+    },
+    {
+      "command": "python integrations/ai4science/platform/collect-evidence-test.py",
+      "outcome": "Manifest paths used OS separators, so the same file list differed on Windows. Manifest paths are now emitted as POSIX."
+    }
+  ],
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exitCode": 0
+    },
+    {
+      "command": "python integrations/ai4science/platform/check.py --output .ai4science/upstream-platform-09",
+      "exitCode": 0
+    },
+    {
+      "command": "python integrations/ai4science/platform/experiment-check.py --output .ai4science/upstream-experiments-02",
+      "exitCode": 0
+    },
+    {
+      "command": "python integrations/ai4science/external-job/check.py --output .ai4science/upstream-external-05",
+      "exitCode": 0
+    },
+    {
+      "command": "python integrations/ai4science/example-plugin/check.py --output .ai4science/upstream-example-01",
+      "exitCode": 0
+    },
+    {
+      "command": "python integrations/ai4science/platform/collect-evidence-test.py",
+      "exitCode": 0
+    },
+    {
+      "command": "git apply --reverse --check patches/harness-ai4science-v0.1.patch",
+      "exitCode": 0
+    },
+    {
+      "command": "pnpm run typecheck",
+      "exitCode": 0,
+      "scope": "Full upstream host build and client project typecheck"
+    },
+    {
+      "command": "pnpm run doc-sync",
+      "exitCode": 1,
+      "passed": 31,
+      "failed": 10
+    }
+  ],
+  "documentationDiagnostics": {
+    "notClaimedPassing": true,
+    "failures": [
+      "doc graphs",
+      "markdown links",
+      "cordis catalog",
+      "translation pairing",
+      "export jsdoc",
+      "config catalog",
+      "persistence catalog",
+      "persistence type history",
+      "repository references",
+      "concrete terms"
+    ],
+    "explanation": "The fork retains a local host extension and English community README, and omits upstream-owned workflows. Upstream generated catalogs do not incorporate the extension; pairing/link checks flag fork differences. Upstream prose/reference checks also reject existing community source and exact commit-based verification records. No gate was disabled or failure converted into success. Only the pinned-version references in the three community documents were revised; upstream-generated design/catalog documents and historical records were not rewritten."
+  },
+  "limits": [
+    "Windows verified locally; the POSIX-signal lifecycle assertions are skipped on this platform as designed. No macOS/Linux rerun and no real-model research run or scientific-quality evaluation.",
+    "Old deployment baseline must be explicitly updated. Keep Provider versions and original directories for unresolved operations.",
+    "No restoration of live Agent or experiment-controller authorization from disk.",
+    "Upstream product surfaces outside AI4Science integration are not exhaustively validated here.",
+    "Session format rose to V4 upstream; execution schema 2 unchanged and the existing v1 to v2 execution migration is retained."
+  ],
+  "sourceSHA256": {
+    "package.json": "d7ca35cda71f88e9463affec54008995b4b7e913dddbf5a903583a250e00712d",
+    "packages/subagent/subagent/src/index.ts": "5274ce7966bf2802bee60fa796684668b758c139aadcbb7a0b93dbdaae9d1a2f",
+    "packages/subagent/subagent/src/continuation.ts": "8fedcda4cb590c53954f45b36f1a465bc65f95f16d8f2f50363c1af8cee6dd9e",
+    "packages/subagent/subagent/src/science-results.ts": "852fdee2f36212730507cd865d0406e79e2839a95d4b31b1ba7176d3e9165935",
+    "packages/subagent/subagent/src/continuation-activation.ts": "ac53060a7bc2d2a5490e5543b6762b348df322d47abc63b5124893f78bbd4328",
+    "UPSTREAM.json": "db79d958b9cf813d5d181506c0a729bc78c8ded6712650aac4978693cd16f387",
+    "integrations/ai4science/cross-branch/cross-branch.spec.ts": "3e9ab2ac61d5417efd16fbec69a747b0bb13d01e92b947938a84907efbd55d1f",
+    "integrations/ai4science/cross-branch/fixture.ts": "13f662bee43e523330443d5b83f076e8e96c22781a4af65960d5045dd9c78bfa",
+    "integrations/ai4science/platform/examples/local.config.json": "8aca31bff57084959976930e9900021ba5045846aaa517186010b7acc11d9b4f",
+    "integrations/ai4science/external-job/provider/src/journal.mjs": "95eb1c786aee665eac5f33e5de5e9c7d9ca4891d8ddd28f3fdbeb858b17e8b4a",
+    "integrations/ai4science/external-job/provider/src/index.mjs": "c7586bf7cbab35a7c9ba5bebbe02d414313af20eab673f09b6236b6e72c2f3af",
+    "integrations/ai4science/first-loop/analysis.ts": "83693770eef48689f4405614a769e83351d3e1d261835858c1f813e4675f94d5",
+    "integrations/ai4science/platform/collect-evidence.py": "331bc0293924ed27333564100166c52928a89e7a30afc67ce3f64e182e24c4d4"
+  },
+  "recordUpgrade": {
+    "note": "The old-pin refusal was exercised directly: cli-check rejected a deployment carrying the previous baseline with a schema error before any migration. No dual-checkout record replay was rerun; session-format and execution-schema migration coverage comes from the platform suites.",
+    "oldPinRejectedBeforeExplicitUpdate": true
+  },
+  "integrationCommit": "7a635f625235b4078ede58fca1c3e277586d5ea8",
+  "commitHooks": "Not run on this host; integration branch prepared in an isolated worktree."
+}

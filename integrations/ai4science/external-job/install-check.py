@@ -21,7 +21,7 @@ def main():
     records, checks = [], []
 
     def run(command, cwd=repo, expected=0):
-        r = subprocess.run([str(v) for v in command], cwd=cwd, capture_output=True, text=True, timeout=60)
+        r = subprocess.run([str(v) for v in command], cwd=cwd, capture_output=True, text=True, encoding='utf-8', timeout=60)
         records.append({'command': [str(v) for v in command], 'cwd': str(cwd), 'exitCode': r.returncode, 'stdout': r.stdout, 'stderr': r.stderr})
         (root / 'commands.json').write_text(json.dumps(records, indent=2) + '\n')
         assert r.returncode == expected, records[-1]

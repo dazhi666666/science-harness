@@ -312,13 +312,12 @@ export async function stored(probe: Probe, id: SessionId) {
 
 /** Read actual rendered tool JSON, without substituting a result in the model fixture. */
 export function toolValue(options: GenerateOptions, callId: string): unknown {
-  const block = options.messages
-    .flatMap((message) => message.content)
-    .findLast((block) => block.type === 'tool-result' && block.toolCallId === callId)
-  if (block?.type !== 'tool-result' || block.isError)
+  const message = options.messages
+    .findLast((message) => message.role === 'tool' && message.toolCallId === callId)
+  if (message?.role !== 'tool' || message.isError)
     throw new Error(`missing successful tool result ${callId}`)
   return JSON.parse(
-    block.content
+    message.content
       .filter((part) => part.type === 'text')
       .map((part) => part.text)
       .join(''),

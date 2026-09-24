@@ -26,9 +26,9 @@ it('cold-resumes a V2 child through the current host, preserves predecessor byte
     gate.release()
     await vi.waitFor(() => expect(p.ctx.agents.get(id)).toBeUndefined())
     expect(await readFile(join(directory, 'session.v2.jsonl'), 'utf8')).toBe(source)
-    const current = (await readFile(join(directory, 'session.v3.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
-    expect(current[0]).toMatchObject({ version:3, id, parentSession:parent.agent.id })
+    const current = (await readFile(join(directory, 'session.v4.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+    expect(current[0]).toMatchObject({ version:4, id, parentSession:parent.agent.id })
     expect(current.some(e => e.type === 'user/message' && e.data.content.some((b:{text?:string}) => b.text === 'ACTOR legacy-worker'))).toBe(true)
-    p.report.status='passed';p.report.migration={from:2,to:3,predecessorBytesUnchanged:true,oldGrantsRestored:false}
+    p.report.status='passed';p.report.migration={from:2,to:4,predecessorBytesUnchanged:true,oldGrantsRestored:false}
   } finally { await p.close() }
 })

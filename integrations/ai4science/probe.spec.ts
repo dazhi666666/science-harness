@@ -103,7 +103,8 @@ function start(ctx: Context, owner: Agent, id: string) {
 
 it('loads the plugin, delegates through the real loop, persists caller-attributed science results, then reads after restart', async () => {
   const echoResult = (options: Parameters<LlmAdapter['stream']>[0]) => {
-    const content = options.messages.at(-1)?.content.filter(block => block.type === 'tool-result').flatMap(block => block.content).filter(block => block.type === 'text').map(block => block.text).join('')
+    const last = options.messages.at(-1)
+    const content = last?.role === 'tool' ? last.content.filter(block => block.type === 'text').map(block => block.text).join('') : undefined
     return textResponse(content ?? '')
   }
   const { ctx, root, adapter } = await boot([
@@ -118,7 +119,7 @@ it('loads the plugin, delegates through the real loop, persists caller-attribute
   await main.dispose()
   const parentLog = await stored(ctx, SessionId('science-parent'))
   const delegation = parentLog.events.find(event => event.type === 'tool/result')
-  expect(delegation?.data).toMatchObject({ message: { content: [{ isError: false }] } })
+  expect(delegation?.data.message.isError ?? false).toBe(false)
   const children = await ctx.subagents.listChildren(SessionId('science-parent'))
   expect(children).toHaveLength(1)
   const childId = children[0]!.id
@@ -126,7 +127,7 @@ it('loads the plugin, delegates through the real loop, persists caller-attribute
   expect(childLog.header.parentSession).toBe('science-parent')
   const measurement = childLog.events.find(event => event.type === 'tool/result')
   if (measurement?.type !== 'tool/result') throw new Error('missing durable measurement')
-  const result = JSON.parse(measurement.data.message.content[0].content.filter(block => block.type === 'text').map(block => block.text).join(''))
+  const result = JSON.parse(measurement.data.message.content.filter((block) => block.type === 'text').map((block) => block.text).join(''))
   expect(result).toMatchObject({ mean: 2, samples: [1, 2, 3], project: 'probe-project', callerSessionId: childId })
   expect(JSON.stringify(delegation)).toContain(result.id)
   expect(ctx.agents.get(childId)).toBeUndefined()

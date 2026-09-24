@@ -258,7 +258,8 @@ describe('durable execution domain', () => {
     expect(() => engine.submit(ctx, request('two'))).toThrow('configuration differs')
     expect(Object.values(provider.load()).map((x) => x.starts)).toEqual([1])
   })
-  it('recovers after process death between actual provider start and submit reply', async () => {
+  // Windows termination reports no POSIX signal name, so the SIGKILL assertion is POSIX-only.
+  it.skipIf(process.platform === 'win32')('recovers after process death between actual provider start and submit reply', async () => {
     const root = directory(),
       domain = join(root, 'domain'),
       journal = join(root, 'provider-journal.json')

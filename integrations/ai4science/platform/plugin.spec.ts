@@ -148,7 +148,7 @@ it('native cross-parent participants execute, wait, exchange persisted job refer
           .some(
             (e) =>
               e.type === 'tool/result' &&
-              e.data.message.content.some((b) => b.toolCallId.startsWith('consent-') && !b.isError),
+              e.data.message.toolCallId.startsWith('consent-') && !e.data.message.isError,
           ),
       ),
     ).toBe(true),
