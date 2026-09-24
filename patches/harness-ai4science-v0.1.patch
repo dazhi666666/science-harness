@@ -1,0 +1,419 @@
+diff --git a/package.json b/package.json
+index 5e7ce892f0..ffcf42660c 100644
+--- a/package.json
++++ b/package.json
+@@ -4,7 +4,7 @@
+   "license": "MIT",
+   "private": true,
+   "type": "module",
+-  "packageManager": "pnpm@11.7.0",
++  "packageManager": "pnpm@11.19.0",
+   "engines": {
+     "node": "^22.19.0 || >=24.0.0"
+   },
+diff --git a/packages/subagent/subagent/src/continuation-activation.ts b/packages/subagent/subagent/src/continuation-activation.ts
+index d995e9f2b4..15d0979567 100644
+--- a/packages/subagent/subagent/src/continuation-activation.ts
++++ b/packages/subagent/subagent/src/continuation-activation.ts
+@@ -509,6 +509,7 @@ export class ContinuableActivationRegistry {
+    * @param delivery - the Agent inbox destination.
+    * @param parent - exact live direct parent authorizing admission.
+    * @param signal - caller cancellation before inbox acceptance.
++   * @param beforeAccept - Optional authority reservation immediately before enqueue; returns a rollback for failed delivery.
+    * @returns the accepted durable message id.
+    */
+   submitAdmitted(
+@@ -517,6 +518,7 @@ export class ContinuableActivationRegistry {
+     delivery: SubagentDelivery,
+     parent: Agent,
+     signal: AbortSignal,
++    beforeAccept?: (id: MessageId) => () => void,
+   ): MessageId {
+     signal.throwIfAborted()
+     this.assertAdmitting(parent)
+@@ -526,8 +528,13 @@ export class ContinuableActivationRegistry {
+       activation.handle.agent.session.header.parentSession,
+     )
+     this.acquireOwnership(parent, activation.childId)
++    let rollback: (() => void) | undefined
+     try {
++      rollback = beforeAccept?.(message.id)
+       activation.inbox.deliver(message, delivery)
++    } catch (error) {
++      rollback?.()
++      throw error
+     } finally {
+       this.wake(activation)
+     }
+diff --git a/packages/subagent/subagent/src/continuation.ts b/packages/subagent/subagent/src/continuation.ts
+index 87fae7096a..36b31a1df4 100644
+--- a/packages/subagent/subagent/src/continuation.ts
++++ b/packages/subagent/subagent/src/continuation.ts
+@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto'
+ import type { Context } from '@deepseek-ai/cordis'
+ import type { Agent } from '@deepseek-ai/dsh-agent'
+ import { brandString } from '@deepseek-ai/dsh-brand'
+-import { ReasoningEffortId, contentHasImage, createUserMessage } from '@deepseek-ai/dsh-llm'
++import { ReasoningEffortId, contentHasImage, createUserMessage, freezeMessage } from '@deepseek-ai/dsh-llm'
+ import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-llm'
+ import { SessionLogOffset } from '@deepseek-ai/dsh-session'
+ import type { SessionId } from '@deepseek-ai/dsh-session'
+@@ -41,6 +41,8 @@ import { assertSubagentMaxDepth } from './depth.ts'
+ import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor.ts'
+ import { establishCatalogChild } from './catalog.ts'
+ import { SubagentError } from './error.ts'
++import { ScienceResultExchange } from './science-results.ts'
++import type { Config } from './index.ts'
+ import { isAdjacentAgentSendMessageTool } from './internal.ts'
+ import type { ActivationObserver } from './lifecycle.ts'
+ import type {
+@@ -53,7 +55,10 @@ import type {
+ } from './types.ts'
+ 
+ /** Inputs shared by model steering and human prompt delivery. */
+-type ChildDeliveryOptions =
++type ChildDeliveryOptions = {
++  readonly beforeAccept?: (id: MessageId) => () => void
++  readonly contentForId?: (id: MessageId) => ContentBlock[]
++} & (
+   | {
+     readonly delivery: 'steer'
+     /**
+@@ -63,7 +68,7 @@ type ChildDeliveryOptions =
+     readonly source?: MessageSource
+     readonly signal: AbortSignal
+   }
+-  | { readonly delivery: 'queue'; readonly source: MessageSource; readonly signal: AbortSignal }
++  | { readonly delivery: 'queue'; readonly source: MessageSource; readonly signal: AbortSignal })
+ 
+ /** Package-private hooks supplied by the owning service. */
+ interface ContinuationHost {
+@@ -80,18 +85,44 @@ interface ContinuationHost {
+  * this lifecycle.
+  */
+ export class SubagentContinuationManager {
++  readonly scienceResults: ScienceResultExchange | undefined
+   private readonly activations: ContinuableActivationRegistry
+ 
+   constructor(
+     private readonly ctx: Context,
+     private readonly host: ContinuationHost,
+     maxActiveSubagents: () => number,
++    config: Pick<Config, 'scienceResultProject' | 'scienceResultMaxPending' | 'scienceResultMaxPairs'> = {},
+   ) {
+     this.activations = new ContinuableActivationRegistry(
+       ctx,
+       (provider, childId, parent) => host.observeActivation(provider, childId, parent),
+       maxActiveSubagents,
+     )
++    this.scienceResults = config.scienceResultProject === undefined ? undefined : new ScienceResultExchange(
++      config.scienceResultProject, config.scienceResultMaxPending ?? 32, {
++        assertLive: (agent) => {
++          this.activations.assertAdmitting(agent)
++          const activation = this.activations.get(agent.id)
++          if (ctx.agents.get(agent.id) !== agent
++            || (activation?.handle.agent === agent && activation.inbox.closing !== undefined)) {
++            throw new SubagentError('science authority requires the exact live, non-disposing Agent', 'SCIENCE_STALE_AGENT')
++          }
++        },
++        endpoint: async (parent, childId, signal) => {
++          using observation = await this.requireSessionQuery().observeSession(childId, { signal })
++          this.activations.assertAdmitting(parent)
++          this.activations.authorizeLineage(parent, childId, observation.header.parentSession)
++          if (foldSubagentDescriptor(observation.events.slice(observation.inheritedEventCount))?.mode !== 'continuable') {
++            throw new SubagentError('science endpoint must be an existing continuable child', 'NOT_RESUMABLE')
++          }
++        },
++        deliver: (parent, childId, content, source, signal, beforeAccept) =>
++          this.deliverToChild(parent, childId, [], { source, signal, beforeAccept, contentForId: content, delivery: 'steer' }),
++      }, config.scienceResultMaxPairs ?? 1,
++    )
++    ctx.on('agent/disposed', ({ agent }) => this.scienceResults?.parentDisposed(agent))
++    ctx.effect(() => () => this.scienceResults?.close(), 'subagents.scienceResults')
+   }
+ 
+   /**
+@@ -379,6 +410,7 @@ export class SubagentContinuationManager {
+ 
+   /** Close manager-wide admission and release every live Activation. */
+   async drain(): Promise<void> {
++    this.scienceResults?.close()
+     await this.activations.drain()
+   }
+ 
+@@ -493,15 +525,17 @@ export class SubagentContinuationManager {
+     options: ChildDeliveryOptions,
+     parent: Agent,
+   ): MessageId {
+-    const message = options.source === undefined
++    const initial = options.source === undefined
+       ? createAgentMessage(parent, content)
+       : createUserMessage({ content, source: options.source })
++    const message = options.contentForId === undefined ? initial : freezeMessage({ ...initial, content: options.contentForId(initial.id) })
+     return this.activations.submitAdmitted(
+       activation,
+       message,
+       options.delivery,
+       parent,
+       options.signal,
++      options.beforeAccept,
+     )
+   }
+ 
+diff --git a/packages/subagent/subagent/src/index.ts b/packages/subagent/subagent/src/index.ts
+index 5d2941be6a..0a349eb202 100644
+--- a/packages/subagent/subagent/src/index.ts
++++ b/packages/subagent/subagent/src/index.ts
+@@ -31,6 +31,8 @@
+ 
+ import { Context } from '@deepseek-ai/cordis'
+ import z from '@deepseek-ai/schemastery'
++import type { ScienceResultExchange } from './science-results.ts'
++export type { SciencePeerConsent, ScienceResultMessage, ScienceResultReader, ScienceResultSource } from './science-results.ts'
+ import type {} from '@deepseek-ai/dsh-settings'
+ import type {} from '@deepseek-ai/dsh-attachment'
+ import { scopeTarget } from '@deepseek-ai/dsh-scope'
+@@ -188,6 +190,12 @@ interface BrowserPromptSource {
+ 
+ /** Host configuration for continuable subagent capacity. */
+ export interface Config {
++  /** Explicit single-project result exchange opt-in; absent by default. */
++  scienceResultProject?: string
++  /** Maximum exact peer pairs, fixed when the extension starts. */
++  scienceResultMaxPairs?: number
++  /** Maximum pending result references, fixed when the extension starts. */
++  scienceResultMaxPending?: number
+   /** Maximum live children sharing uninterrupted continuable parent links; defaults to 8. */
+   maxActiveSubagents?: number
+   /** Default delegation depth for tools without an explicit limit; defaults to 1. */
+@@ -197,6 +205,9 @@ export interface Config {
+ /** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
+ export class SubagentRuntime extends TypertRemoteService {
+   static Config: z<Config> = z.object({
++    scienceResultProject: z.string().min(1),
++    scienceResultMaxPairs: z.number().step(1).min(1).max(128).default(1),
++    scienceResultMaxPending: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(32),
+     maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1),
+     maxActiveSubagents: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(8),
+   })
+@@ -226,7 +237,7 @@ export class SubagentRuntime extends TypertRemoteService {
+       const manager = new SubagentContinuationManager(childCtx, {
+         prepareContinuable: (name, request) => this.prepareContinuable(name, request),
+         observeActivation: (provider, childId, parent) => this.observeActivation(provider, childId, parent),
+-      }, () => (this.settingsSource() as Required<Config>).maxActiveSubagents)
++      }, () => (this.settingsSource() as Required<Config>).maxActiveSubagents, config)
+       this.continuations = manager
+       childCtx.effect(() => () => {
+         /* v8 ignore else -- one injected binding owns the slot until its fiber disposes. */
+@@ -263,6 +274,11 @@ export class SubagentRuntime extends TypertRemoteService {
+     return this.requireContinuations().startContinuable(spec)
+   }
+ 
++  /** Optional single-project result exchange; absent unless scienceResultProject is configured. */
++  get scienceResults(): ScienceResultExchange | undefined {
++    return this.requireContinuations().scienceResults
++  }
++
+   /**
+    * Steer one model-authored message to the sender's direct parent or direct
+    * continuable child. A running target admits it at the nearest step boundary;
+diff --git a/packages/subagent/subagent/src/science-results.ts b/packages/subagent/subagent/src/science-results.ts
+new file mode 100644
+index 0000000000..182f1413b0
+--- /dev/null
++++ b/packages/subagent/subagent/src/science-results.ts
+@@ -0,0 +1,194 @@
++/** Opt-in, single-project, bounded-pair result-reference authority inside the existing subagent runtime. */
++import { z } from 'zod'
++import type { Agent } from '@deepseek-ai/dsh-agent'
++import type { ContentBlock, MessageId } from '@deepseek-ai/dsh-llm'
++import type { SessionId } from '@deepseek-ai/dsh-session'
++import { SubagentError } from './error.ts'
++
++/** The only payloads this extension admits. Replies carry no arbitrary instructions or result data. */
++export type ScienceResultMessage =
++  | { readonly kind: 'reference'; readonly resultId: string }
++  | { readonly kind: 'reply'; readonly resultId: string; readonly inReplyTo: MessageId }
++
++/** Synchronous lookup over records published only after a successful durable science-store write. */
++export type ScienceResultReader = (id: string) => { readonly project: string; readonly ownerSessionId: SessionId } | undefined
++
++/** Durable provenance distinguishes the original worker from both authorizing parents. */
++export interface ScienceResultSource {
++  readonly kind: 'science-result'
++  readonly form: 'relay'
++  readonly project: string
++  readonly senderSessionId: SessionId
++  readonly senderParentSessionId: SessionId
++  readonly recipientParentSessionId: SessionId
++}
++
++declare module '@deepseek-ai/dsh-llm' {
++  interface MessageSourceMap { 'science-result': ScienceResultSource }
++}
++
++/** Explicit consent by the caller for its child to exchange references with one other parent's child. */
++export interface SciencePeerConsent {
++  readonly childId: SessionId
++  readonly peerChildId: SessionId
++  readonly peerParent: Agent
++}
++
++/** Manager-private adapter; delivery retains its direct-parent check and existing residency owner. */
++export interface ScienceResultHost {
++  assertLive(agent: Agent): void
++  endpoint(parent: Agent, childId: SessionId, signal: AbortSignal): Promise<void>
++  deliver(parent: Agent, childId: SessionId, content: (id: MessageId) => ContentBlock[], source: ScienceResultSource,
++    signal: AbortSignal, beforeAccept: (id: MessageId) => () => void): Promise<MessageId>
++}
++
++interface Endpoint { readonly parent: Agent; readonly childId: SessionId }
++interface PendingReference { readonly sender: SessionId; readonly target: SessionId; readonly resultId: string }
++interface Pair {
++  readonly endpoints: readonly [Endpoint, Endpoint]
++  readonly consent: Set<Agent>
++  readonly controller: AbortController
++  readonly references: Map<MessageId, PendingReference>
++}
++
++const payloadSchema = z.discriminatedUnion('kind', [
++  z.object({ kind: z.literal('reference'), resultId: z.string().min(1).max(128) }).strict(),
++  z.object({ kind: z.literal('reply'), resultId: z.string().min(1).max(128), inReplyTo: z.string().min(1).max(128) }).strict(),
++])
++
++function reject(code: string, message: string): never { throw new SubagentError(message, code) }
++
++/** Ephemeral consent and reply correlation, with no inbox, scheduler, Team roster or delivery queue. */
++export class ScienceResultExchange {
++  private readonly pairs = new Set<Pair>()
++  private reader: ScienceResultReader | undefined
++  private epoch = 0
++  private closed = false
++
++  constructor(readonly project: string, private readonly maxPending: number, private readonly host: ScienceResultHost, readonly maxPairs = 1) {}
++
++  /** Validate exact native residency and teardown admission without granting any communication rights. */
++  assertLiveParticipant(agent: Agent): void {
++    if (this.closed) reject('SCIENCE_DISABLED', 'science result exchange is closed')
++    this.host.assertLive(agent)
++  }
++
++  /**
++   * Bind the one trusted project-result store. Unbinding revokes consent and pending admission.
++   * @param project - Must equal the explicitly configured project.
++   * @param reader - Synchronous post-durability metadata lookup; never an asynchronous dispatch hook.
++   * @returns disposer for the binding.
++   */
++  bindResults(project: string, reader: ScienceResultReader): () => void {
++    if (this.closed || project !== this.project || this.reader !== undefined) reject('SCIENCE_BINDING_REJECTED', 'science result binding unavailable')
++    this.reader = reader
++    return () => { if (this.reader === reader) { this.reader = undefined; this.invalidate() } }
++  }
++
++  /**
++   * Authorize the caller's own continuable child and exact peer/parent pair. Both parents must call.
++   * @param parent - Exact live authorizing parent, never supplied by a worker's model arguments.
++   * @param request - Own child and exact other parent/child.
++   * @param signal - Cancellation before consent is committed.
++   * @returns after the caller's consent is installed; this does not imply the other parent's consent.
++   */
++  async authorize(parent: Agent, request: SciencePeerConsent, signal: AbortSignal): Promise<void> {
++    if (this.closed) reject('SCIENCE_DISABLED', 'science result exchange is closed')
++    const { childId, peerChildId, peerParent } = request
++    this.host.assertLive(parent); this.host.assertLive(peerParent)
++    if (parent.id === peerParent.id || childId === peerChildId) reject('SCIENCE_INVALID_PAIR', 'science exchange requires two distinct parents and children')
++    const epoch = this.epoch
++    await this.host.endpoint(parent, childId, signal)
++    await this.host.endpoint(peerParent, peerChildId, signal)
++    signal.throwIfAborted()
++    this.host.assertLive(parent); this.host.assertLive(peerParent)
++    if (this.closed || epoch !== this.epoch) reject('SCIENCE_GRANT_CHANGED', 'consent changed during authorization')
++    let pair = [...this.pairs].find(value => value.endpoints.some(endpoint => endpoint.parent === parent && endpoint.childId === childId)
++      && value.endpoints.some(endpoint => endpoint.parent === peerParent && endpoint.childId === peerChildId))
++    if (pair === undefined) {
++      if (this.pairs.size >= this.maxPairs) reject('SCIENCE_PAIR_CONFLICT', 'configured science pair capacity reached; revoke before replacing it')
++      pair = { endpoints: [{ parent, childId }, { parent: peerParent, childId: peerChildId }], consent: new Set(), controller: new AbortController(), references: new Map() }
++      this.pairs.add(pair)
++    }
++    pair.consent.add(parent)
++  }
++
++  /**
++   * Revoke the entire pair immediately. Both parents must reauthorize; accepted messages are not recalled.
++   * @param parent - One of the exact live parents that owns this pair.
++   */
++  revoke(parent: Agent, childId?: SessionId, peerChildId?: SessionId): void {
++    this.host.assertLive(parent)
++    const owned = [...this.pairs].filter(pair => pair.endpoints.some(endpoint => endpoint.parent === parent && (childId === undefined || endpoint.childId === childId)) && (peerChildId === undefined || pair.endpoints.some(endpoint => endpoint.childId === peerChildId)))
++    if (!owned.length) reject('SCIENCE_NO_GRANT', 'caller does not own the science pair')
++    for (const pair of owned) this.invalidate(pair)
++  }
++
++  /** Invalidate consent when an exact parent leaves the registry; worker cold resume does not revoke it. */
++  parentDisposed(agent: Agent): void {
++    for (const pair of this.pairs) if (pair.endpoints.some(endpoint => endpoint.parent === agent)) this.invalidate(pair)
++  }
++
++  /** Close extension admission on host teardown or disable. Already accepted inbox work remains host-owned. */
++  close(): void { this.closed = true; this.reader = undefined; this.invalidate() }
++
++  /**
++   * Admit a result reference or one correlated reverse reply through the existing continuation manager.
++   * @param sender - Exact current live worker; stale same-id instances are rejected.
++   * @param targetId - The one peer authorized by both real parents.
++   * @param input - Strict reference/reply payload; the referenced record must exist in this project.
++   * @param signal - Cancellation before acceptance, not ownership of the recipient's work.
++   * @returns the actual recipient inbox message id, not a processing/completion receipt.
++   */
++  async send(sender: Agent, targetId: SessionId, input: ScienceResultMessage, signal: AbortSignal): Promise<MessageId> {
++    const message = payloadSchema.parse(input) as ScienceResultMessage
++    const pair = [...this.pairs].find(value => value.endpoints.some(endpoint => endpoint.childId === sender.id) && value.endpoints.some(endpoint => endpoint.childId === targetId))
++    if (this.closed || this.pairs.size === 0) reject('SCIENCE_NO_GRANT', 'no active science pair')
++    if (!pair) reject('SCIENCE_TARGET_DENIED', 'target is not the authorized science peer')
++    const senderEndpoint = pair.endpoints.find(endpoint => endpoint.childId === sender.id)
++    const target = pair.endpoints.find(endpoint => endpoint.childId === targetId)
++    if (!senderEndpoint || !target || senderEndpoint === target) reject('SCIENCE_TARGET_DENIED', 'target is not the authorized science peer')
++    const check = () => {
++      if (this.closed || !this.pairs.has(pair) || pair.consent.size !== 2) reject('SCIENCE_NO_GRANT', 'both exact parents must authorize the science pair')
++      this.host.assertLive(sender)
++      for (const endpoint of pair.endpoints) this.host.assertLive(endpoint.parent)
++      if (sender.session.header.parentSession !== senderEndpoint.parent.id) reject('SCIENCE_LINEAGE_DENIED', 'sender is not its authorizing parent child')
++      const result = this.reader?.(message.resultId)
++      if (!result || result.project !== this.project) reject('SCIENCE_RESULT_UNAVAILABLE', 'persisted result is unavailable in this project')
++      if (message.kind === 'reference') {
++        if (result.ownerSessionId !== sender.id) reject('SCIENCE_RESULT_OWNER', 'reference must originate from its recorded science worker')
++        if (pair.references.size >= this.maxPending) reject('SCIENCE_REFERENCE_LIMIT', 'too many pending science references')
++      } else {
++        const prior = pair.references.get(message.inReplyTo)
++        if (!prior || prior.sender !== targetId || prior.target !== sender.id || prior.resultId !== message.resultId) reject('SCIENCE_REPLY_MISMATCH', 'reply must match one accepted reverse reference')
++      }
++    }
++    check()
++    const combined = AbortSignal.any([signal, pair.controller.signal])
++    combined.throwIfAborted()
++    return this.host.deliver(target.parent, targetId, id => [{ type: 'text', text: JSON.stringify({ messageId: id, project: this.project, senderSessionId: sender.id, ...message }) }], {
++      kind: 'science-result', form: 'relay', project: this.project, senderSessionId: sender.id,
++      senderParentSessionId: senderEndpoint.parent.id, recipientParentSessionId: target.parent.id,
++    }, combined, (id) => {
++      // Final no-await cutoff: checks and correlation reservation precede synchronous host enqueue.
++      check()
++      combined.throwIfAborted()
++      if (message.kind === 'reference') {
++        pair.references.set(id, { sender: sender.id, target: targetId, resultId: message.resultId })
++        return () => { pair.references.delete(id) }
++      }
++      const prior = pair.references.get(message.inReplyTo)!
++      pair.references.delete(message.inReplyTo)
++      return () => { pair.references.set(message.inReplyTo, prior) }
++    })
++  }
++
++  private invalidate(target?: Pair): void {
++    const previous = target ? [target] : [...this.pairs]
++    this.epoch++
++    for (const pair of previous) {
++      this.pairs.delete(pair)
++      pair.controller.abort(new SubagentError('science consent was revoked before message acceptance', 'SCIENCE_REVOKED'))
++    }
++  }
++}

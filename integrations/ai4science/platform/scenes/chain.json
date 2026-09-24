@@ -1,0 +1,93 @@
+{
+  "project": "organization-chain",
+  "rootRole": "coordinator",
+  "maxParticipants": 4,
+  "maxDepth": 3,
+  "roles": {
+    "coordinator": {
+      "instructions": "Delegate through a relay.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_create",
+        "org_finish"
+      ],
+      "creates": {
+        "relay": 1
+      },
+      "maxInstances": 1
+    },
+    "relay": {
+      "instructions": "Delegate to a specialist manager.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_create"
+      ],
+      "creates": {
+        "manager": 1
+      },
+      "maxInstances": 1
+    },
+    "manager": {
+      "instructions": "Delegate execution to your worker.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_create"
+      ],
+      "creates": {
+        "worker": 1
+      },
+      "maxInstances": 1
+    },
+    "worker": {
+      "instructions": "Execute assigned operations and report to your direct parent.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "execution_submit",
+        "execution_cancel"
+      ],
+      "creates": {},
+      "maxInstances": 1
+    }
+  },
+  "relations": []
+}

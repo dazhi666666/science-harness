@@ -46,4 +46,20 @@ apps/web/dist/
 worktrees/
 .agents/worktrees/
 .typert-*/
+
+# Local AI4Science operations and development evidence
+/integrations/ai4science/evidence/
+/integrations/ai4science/platform/examples/local-data/
+/.ai4science/
+/release-artifacts/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.key
+*.pem
+.env.*
+!.env.example
+__pycache__/
+*.pyc
 native/system/test/bin/

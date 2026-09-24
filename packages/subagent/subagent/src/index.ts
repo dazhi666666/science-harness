@@ -31,6 +31,8 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import type { ScienceResultExchange } from './science-results.ts'
+export type { SciencePeerConsent, ScienceResultMessage, ScienceResultReader, ScienceResultSource } from './science-results.ts'
 import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-attachment'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
@@ -188,6 +190,12 @@ interface BrowserPromptSource {
 
 /** Host configuration for continuable subagent capacity. */
 export interface Config {
+  /** Explicit single-project result exchange opt-in; absent by default. */
+  scienceResultProject?: string
+  /** Maximum exact peer pairs, fixed when the extension starts. */
+  scienceResultMaxPairs?: number
+  /** Maximum pending result references, fixed when the extension starts. */
+  scienceResultMaxPending?: number
   /** Maximum live children sharing uninterrupted continuable parent links; defaults to 8. */
   maxActiveSubagents?: number
   /** Default delegation depth for tools without an explicit limit; defaults to 1. */
@@ -197,6 +205,9 @@ export interface Config {
 /** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
 export class SubagentRuntime extends TypertRemoteService {
   static Config: z<Config> = z.object({
+    scienceResultProject: z.string().min(1),
+    scienceResultMaxPairs: z.number().step(1).min(1).max(128).default(1),
+    scienceResultMaxPending: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(32),
     maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1),
     maxActiveSubagents: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(8),
   })
@@ -226,7 +237,7 @@ export class SubagentRuntime extends TypertRemoteService {
       const manager = new SubagentContinuationManager(childCtx, {
         prepareContinuable: (name, request) => this.prepareContinuable(name, request),
         observeActivation: (provider, childId, parent) => this.observeActivation(provider, childId, parent),
-      }, () => (this.settingsSource() as Required<Config>).maxActiveSubagents)
+      }, () => (this.settingsSource() as Required<Config>).maxActiveSubagents, config)
       this.continuations = manager
       childCtx.effect(() => () => {
         /* v8 ignore else -- one injected binding owns the slot until its fiber disposes. */
@@ -261,6 +272,11 @@ export class SubagentRuntime extends TypertRemoteService {
    */
   async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart> {
     return this.requireContinuations().startContinuable(spec)
+  }
+
+  /** Optional single-project result exchange; absent unless scienceResultProject is configured. */
+  get scienceResults(): ScienceResultExchange | undefined {
+    return this.requireContinuations().scienceResults
   }
 
   /**

@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { brandString } from '@deepseek-ai/dsh-brand'
-import { ReasoningEffortId, contentHasImage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { ReasoningEffortId, contentHasImage, createUserMessage, freezeMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-llm'
 import { SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { SessionId } from '@deepseek-ai/dsh-session'
@@ -41,6 +41,8 @@ import { assertSubagentMaxDepth } from './depth.ts'
 import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor.ts'
 import { establishCatalogChild } from './catalog.ts'
 import { SubagentError } from './error.ts'
+import { ScienceResultExchange } from './science-results.ts'
+import type { Config } from './index.ts'
 import { isAdjacentAgentSendMessageTool } from './internal.ts'
 import type { ActivationObserver } from './lifecycle.ts'
 import type {
@@ -53,7 +55,10 @@ import type {
 } from './types.ts'
 
 /** Inputs shared by model steering and human prompt delivery. */
-type ChildDeliveryOptions =
+type ChildDeliveryOptions = {
+  readonly beforeAccept?: (id: MessageId) => () => void
+  readonly contentForId?: (id: MessageId) => ContentBlock[]
+} & (
   | {
     readonly delivery: 'steer'
     /**
@@ -63,7 +68,7 @@ type ChildDeliveryOptions =
     readonly source?: MessageSource
     readonly signal: AbortSignal
   }
-  | { readonly delivery: 'queue'; readonly source: MessageSource; readonly signal: AbortSignal }
+  | { readonly delivery: 'queue'; readonly source: MessageSource; readonly signal: AbortSignal })
 
 /** Package-private hooks supplied by the owning service. */
 interface ContinuationHost {
@@ -80,18 +85,44 @@ interface ContinuationHost {
  * this lifecycle.
  */
 export class SubagentContinuationManager {
+  readonly scienceResults: ScienceResultExchange | undefined
   private readonly activations: ContinuableActivationRegistry
 
   constructor(
     private readonly ctx: Context,
     private readonly host: ContinuationHost,
     maxActiveSubagents: () => number,
+    config: Pick<Config, 'scienceResultProject' | 'scienceResultMaxPending' | 'scienceResultMaxPairs'> = {},
   ) {
     this.activations = new ContinuableActivationRegistry(
       ctx,
       (provider, childId, parent) => host.observeActivation(provider, childId, parent),
       maxActiveSubagents,
     )
+    this.scienceResults = config.scienceResultProject === undefined ? undefined : new ScienceResultExchange(
+      config.scienceResultProject, config.scienceResultMaxPending ?? 32, {
+        assertLive: (agent) => {
+          this.activations.assertAdmitting(agent)
+          const activation = this.activations.get(agent.id)
+          if (ctx.agents.get(agent.id) !== agent
+            || (activation?.handle.agent === agent && activation.inbox.closing !== undefined)) {
+            throw new SubagentError('science authority requires the exact live, non-disposing Agent', 'SCIENCE_STALE_AGENT')
+          }
+        },
+        endpoint: async (parent, childId, signal) => {
+          using observation = await this.requireSessionQuery().observeSession(childId, { signal })
+          this.activations.assertAdmitting(parent)
+          this.activations.authorizeLineage(parent, childId, observation.header.parentSession)
+          if (foldSubagentDescriptor(observation.events.slice(observation.inheritedEventCount))?.mode !== 'continuable') {
+            throw new SubagentError('science endpoint must be an existing continuable child', 'NOT_RESUMABLE')
+          }
+        },
+        deliver: (parent, childId, content, source, signal, beforeAccept) =>
+          this.deliverToChild(parent, childId, [], { source, signal, beforeAccept, contentForId: content, delivery: 'steer' }),
+      }, config.scienceResultMaxPairs ?? 1,
+    )
+    ctx.on('agent/disposed', ({ agent }) => this.scienceResults?.parentDisposed(agent))
+    ctx.effect(() => () => this.scienceResults?.close(), 'subagents.scienceResults')
   }
 
   /**
@@ -379,6 +410,7 @@ export class SubagentContinuationManager {
 
   /** Close manager-wide admission and release every live Activation. */
   async drain(): Promise<void> {
+    this.scienceResults?.close()
     await this.activations.drain()
   }
 
@@ -493,15 +525,17 @@ export class SubagentContinuationManager {
     options: ChildDeliveryOptions,
     parent: Agent,
   ): MessageId {
-    const message = options.source === undefined
+    const initial = options.source === undefined
       ? createAgentMessage(parent, content)
       : createUserMessage({ content, source: options.source })
+    const message = options.contentForId === undefined ? initial : freezeMessage({ ...initial, content: options.contentForId(initial.id) })
     return this.activations.submitAdmitted(
       activation,
       message,
       options.delivery,
       parent,
       options.signal,
+      options.beforeAccept,
     )
   }
 

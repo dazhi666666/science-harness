@@ -1,0 +1,80 @@
+{
+  "status": "passed-local",
+  "date": "2026-09-09",
+  "upstreamCommit": "d347e703908d0406b7a7ef80e3a0e594d86b2215",
+  "communityBaseCommit": "7b8a98cf0ba4ae266820b8599fd79f584434d78b",
+  "providerSDKProtocolVersion": 1,
+  "coreAndSDKSourceUnchanged": true,
+  "packages": [
+    {
+      "name": "@ai4science/provider-sdk",
+      "version": "0.1.0",
+      "sha256": "c9a3bc9eedc8c6ef25b2d0eba7a76d3ea2fce9e8f9bdb540814d09e0c250cb54",
+      "archive": "ai4science-provider-sdk-0.1.0.tgz"
+    },
+    {
+      "name": "@ai4science/provider-local-job",
+      "version": "0.1.0",
+      "sha256": "f4cd93ec94c7d31c87e75761a25861f8558a6b42ed1d14dc5e7e942ed342358b",
+      "archive": "ai4science-provider-local-job-0.1.0.tgz"
+    }
+  ],
+  "checks": {
+    "externalLifecycleAndScriptAgentTests": 5,
+    "retainedRegressions": 273,
+    "independentInstallationCommands": 15,
+    "independentInstallationAssertions": 11,
+    "standaloneTypes": "passed",
+    "realModelRequests": 0,
+    "githubCI": "not-run"
+  },
+  "commands": [
+    [
+      "python3",
+      "integrations/ai4science/external-job/check.py",
+      "--output",
+      ".ai4science/external-check-03",
+      "--regressions"
+    ]
+  ],
+  "covered": [
+    "normal detached completion without querying",
+    "real digest independently recomputed in Python",
+    "host SIGKILL after submit and lost response",
+    "fresh authorization and durable deduplication",
+    "concurrent duplicate launch tickets",
+    "actual worker termination and partial cancellation",
+    "success preserved on late cancellation",
+    "supervisor loss and missing executable remain unknown",
+    "unknown retains resources and budget",
+    "foreign project, expired context and unauthorized capability rejected",
+    "native script Agent through existing platform tools"
+  ],
+  "limitations": [
+    "macOS arm64 only verified",
+    "fixed local CPU workload; no arbitrary code, shell or physical device",
+    "OS reboot and supervisor-crash continuation unsupported",
+    "unknown jobs are not automatically replayed or force-cleared",
+    "startup acceptance differs from worker start; bounded startup deadline",
+    "shared local artifact directory and original domain binding required",
+    "trusted plugins; no hostile-code sandbox",
+    "package licensing pending; local tarballs only, no registry publication"
+  ],
+  "implementationSHA256": {
+    "integrations/ai4science/external-job/agent.spec.ts": "2d866d146b34186da63517f6682d0aee452d8ef9ab6ec4b4bb35c8047ab0bfa3",
+    "integrations/ai4science/external-job/build.py": "eaef0247fe969a7fe21e097471a62cfac0bcd62b7b207614e81e42f1020239e2",
+    "integrations/ai4science/external-job/check.py": "bfff96a9303bc418dbde9cebcb16b17baa3801204c5151157b2ed67d9f55ba30",
+    "integrations/ai4science/external-job/install-check.py": "63091c023143497a8d939462445cd59a7b25910fd23b199d9108b70adc4c33ab",
+    "integrations/ai4science/external-job/install.py": "949b076f36db00b3a886e977b22b1aa7eea72ad4db0d1ce64a6ef5f5e542d4e4",
+    "integrations/ai4science/external-job/lifecycle.spec.ts": "728dbc7fbe4fc0b01ea4e2d0cd5c62785bbbe5af9d982130e089dfd279b6f462",
+    "integrations/ai4science/external-job/provider/LICENSE": "07ef5b6ae583050cd32bdcd0ea1ecd0522d5bb10cdf339f507de442eab553e69",
+    "integrations/ai4science/external-job/provider/package.json": "30f05733cf6b31c4c0ab22732a76c99b6c90d4cceb525b6d40f5d3e1ec622106",
+    "integrations/ai4science/external-job/provider/src/index.d.ts": "e6237c34fb5d907d516409284a50594b548ffa13a5f558f3c2cf9b4fc9155fb3",
+    "integrations/ai4science/external-job/provider/src/index.mjs": "4f59286c27275e55ed43df4a959b45d7847638ba6496a9822f90f861ceea751b",
+    "integrations/ai4science/external-job/provider/src/journal.mjs": "e11343dd0e22da69a9cf2e3e23c396cadb44626b8d5ae4107d329a031cec2909",
+    "integrations/ai4science/external-job/provider/src/supervisor.mjs": "34f2d689242efc07513a9e55aeeffa2416dac2d429006a6a93fa64053b54601f",
+    "integrations/ai4science/external-job/provider/src/worker.mjs": "58855beb05ff52faf6dd5ffec9947dc521bf4608d6d761d6fa1e97053c7341b0",
+    "integrations/ai4science/external-job/tsconfig.json": "1ce9a1c5131264f77a878a26e0de42abe6f860cc924d9e9f857a26c6255553f4",
+    "integrations/ai4science/external-job/vitest.config.ts": "36d6e3d30eaad0268d89c65039ae9a44b25917a4a02344c6664833eacf58d97a"
+  }
+}

@@ -1,0 +1,14 @@
+# Keyless integration fixture: overrides only the external model and title generator.
+- id: agent-default-model
+  config:
+    provider: science-mock
+    model: science-mock
+- id: session-title-llm
+  disabled: true
+- id: session-persistence-jsonl
+  config:
+    root: !!js process.env.DSH_HOME + '/sessions'
+    compression: none
+- insert:
+    - id: science-mock
+      name: './mock-llm.ts'

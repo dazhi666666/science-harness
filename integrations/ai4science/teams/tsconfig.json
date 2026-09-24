@@ -1,0 +1,25 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["fixture.ts", "teams.spec.ts"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/loader" },
+    { "path": "../../../vendor/include" },
+    { "path": "../../../packages/core/agent" },
+    { "path": "../../../packages/core/agent-loop" },
+    { "path": "../../../packages/core/session" },
+    { "path": "../../../packages/core/tools" },
+    { "path": "../../../packages/core/system-prompt" },
+    { "path": "../../../packages/llm/llm" },
+    { "path": "../../../packages/session/session-projection" },
+    { "path": "../../../packages/session/session-persistence-jsonl" },
+    { "path": "../../../packages/session-query/session-query-sqlite" },
+    { "path": "../../../packages/subagent/subagent" },
+    { "path": "../../../packages/subagent/subagent-spawn-in-process" },
+    { "path": "../../../packages/storage/storage" },
+    { "path": "../../../packages/storage/storage-json" },
+    { "path": "../../../packages/storage/storage-domain" },
+    { "path": "../../../packages/experimental/agent-team" },
+    { "path": "../../../packages/experimental/tool-agent-team" }
+  ]
+}

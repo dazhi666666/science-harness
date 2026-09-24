@@ -1,0 +1,11 @@
+{
+  "name": "@ai4science/provider-local-job",
+  "version": "0.1.1",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {".": {"types": "./src/index.d.ts", "import": "./src/index.mjs"}},
+  "files": ["src", "LICENSE"],
+  "dependencies": {"@ai4science/provider-sdk": "0.1.0"},
+  "engines": {"node": "^22.19 || >=24"}
+}

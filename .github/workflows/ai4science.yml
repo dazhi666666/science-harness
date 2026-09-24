@@ -1,0 +1,57 @@
+name: AI4Science
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai4science-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    env:
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.23.1'
+      - uses: actions/setup-python@v6.3.0
+        with:
+          python-version: '3.11'
+      - name: Install source dependencies and declarations
+        run: python3 integrations/ai4science/platform/setup.py
+      - name: Infrastructure and retained regressions
+        run: python3 integrations/ai4science/platform/check.py --output .ai4science/check
+      - name: Experiment feedback and restarted execution
+        run: python3 integrations/ai4science/platform/experiment-check.py --output .ai4science/experiment-check
+      - name: Released session migration
+        run: pnpm exec vitest run packages/session/session-persistence-jsonl/tests/v2-system-migration.spec.ts packages/session/session-persistence-jsonl/tests/v2-ptc-migration.spec.ts packages/session/session-persistence-jsonl/tests/migration-refusal.spec.ts --reporter=verbose
+      - name: Independently installed external execution
+        run: python3 integrations/ai4science/external-job/check.py --output .ai4science/external-check
+      - name: Copyable Provider example
+        run: python3 integrations/ai4science/example-plugin/check.py --output .ai4science/example-check
+      - name: Stage deterministic test evidence without dependency links
+        if: always()
+        run: |
+          python3 integrations/ai4science/platform/collect-evidence-test.py
+          python3 integrations/ai4science/platform/collect-evidence.py --source .ai4science/check .ai4science/experiment-check .ai4science/external-check .ai4science/example-check --output "${{ runner.temp }}/ai4science-evidence"
+      - name: Retain deterministic test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai4science-check
+          path: ${{ runner.temp }}/ai4science-evidence
+          include-hidden-files: true
+          if-no-files-found: warn

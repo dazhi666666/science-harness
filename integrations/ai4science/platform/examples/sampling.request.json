@@ -1,0 +1,55 @@
+{
+  "goal": "Obtain at least six valid observations across two instrument conditions.",
+  "method": {
+    "id": "bounded-sampling",
+    "version": "1"
+  },
+  "context": {
+    "providerId": "instrument",
+    "minimumReadings": 6
+  },
+  "inputArtifactIds": [],
+  "outputRequirements": "Raw observations, data-completeness assessments and an execution report; scientific interpretation is separate.",
+  "budget": 6,
+  "maxOperations": 2,
+  "actions": [
+    {
+      "id": "measure",
+      "providerId": "instrument",
+      "input": {
+        "conditions": [
+          {
+            "value": -1,
+            "samples": 2
+          },
+          {
+            "value": 1,
+            "samples": 2
+          }
+        ]
+      },
+      "minUses": 1,
+      "maxUses": 1,
+      "requiresEvidence": false
+    },
+    {
+      "id": "supplement",
+      "providerId": "instrument",
+      "input": {
+        "conditions": [
+          {
+            "value": -1,
+            "samples": 1
+          },
+          {
+            "value": 1,
+            "samples": 1
+          }
+        ]
+      },
+      "minUses": 0,
+      "maxUses": 1,
+      "requiresEvidence": true
+    }
+  ]
+}

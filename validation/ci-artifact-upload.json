@@ -1,0 +1,29 @@
+{
+  "at": "2026-09-09T13:18:07.530423+00:00",
+  "affectedCommit": "ae3e1989299f3a902b7c14ae72e39fbdec842847",
+  "failedRun": "https://github.com/dazhi666666/science-harness/actions/runs/34350433604",
+  "diagnosis": "All installation and functional test steps passed. Artifact upload failed with ENAMETOOLONG while recursively following pnpm node_modules links.",
+  "change": "Stage completed evidence as regular files outside the test roots; prune node_modules and all symlinks before upload. Preserve partial records and a manifest when earlier tests fail.",
+  "localValidation": [
+    {
+      "command": "python3 integrations/ai4science/platform/collect-evidence-test.py",
+      "exitCode": 0,
+      "tests": 3
+    },
+    {
+      "command": "python3 integrations/ai4science/platform/collect-evidence.py --source .ai4science/v02-final-platform .ai4science/v02-final-experiments .ai4science/v02-final-external .ai4science/v02-final-example --output .ai4science/ci-evidence-local",
+      "exitCode": 0,
+      "copiedFiles": 111,
+      "excludedEntries": 8,
+      "allCopiedHashesVerified": true,
+      "noDependencyTreesOrSymlinks": true
+    }
+  ],
+  "negativeControl": "A temporary collector variant with directory-link traversal enabled fails the intended test by including outside/private.txt. The production collector rejects that traversal.",
+  "sourceSHA256": {
+    ".github/workflows/ai4science.yml": "f6cf834055d2691a2f5504cc380c3a08211a6d6e5ee176001da7cd32bad746e3",
+    "integrations/ai4science/platform/collect-evidence.py": "40f082dff3c8b904d415466edc478668e0baab2bb3def032fea11dd33e7f7b67",
+    "integrations/ai4science/platform/collect-evidence-test.py": "a00e3c93a8fa3eaa7bb950ce3cd35fce21abd3b1df97748b4b1b6db21f8a6241"
+  },
+  "remoteValidation": "pending new commit run; the earlier functional tests passed, but evidence upload did not."
+}

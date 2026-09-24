@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      name="description"
+      content="science-harness: an extensible foundation for autonomous research, connecting scientific reasoning, experiment coordination, and execution plugins."
+    />
+    <title>science-harness · From question to discovery</title>
+    <link rel="stylesheet" href="/about.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/about" aria-label="About science-harness"
+        ><span class="brand-mark">s·h</span
+        ><span>science<span class="brand-light">-harness</span></span></a
+      >
+      <nav aria-label="Page navigation">
+        <a href="#architecture">Architecture</a
+        ><a href="#build">Build with us</a
+        ><a class="workspace-link" href="/"
+          >Open workspace <span aria-hidden="true">↗</span></a
+        >
+      </nav>
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <span class="eyebrow"
+            ><i></i> A FOUNDATION FOR AUTONOMOUS SCIENCE</span
+          >
+          <h1 id="hero-title">
+            From a question.<br />Toward <em>discovery.</em>
+          </h1>
+          <p class="hero-description">
+            A shared foundation for AI researchers and the tools they work with.
+            Connect scientific reasoning, experiment coordination, and
+            execution—then make every result part of the next decision.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#architecture"
+              >Explore the research loop <span aria-hidden="true">↓</span></a
+            ><a
+              class="text-link"
+              href="https://github.com/dazhi666666/science-harness"
+              target="_blank"
+              rel="noreferrer"
+              >View source on GitHub ↗</a
+            >
+          </div>
+        </div>
+        <aside class="vision-note">
+          <span class="note-index">THE AMBITION / 01</span>
+          <p>Science that can<br /><em>keep asking.</em></p>
+          <div class="note-rule"></div>
+          <span
+            >From proposing a hypothesis to designing experiments, learning from
+            evidence, and writing a paper.</span
+          ><small>Long-term vision · not a claim of full autonomy today</small>
+        </aside>
+      </section>
+      <section
+        class="architecture"
+        id="architecture"
+        aria-labelledby="architecture-title"
+      >
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow"
+              >ONE RESEARCH LOOP · THREE RESPONSIBILITIES</span
+            >
+            <h2 id="architecture-title">Think. Coordinate. Act. Learn.</h2>
+          </div>
+          <p>
+            Many possible organizations.<br />One connected flow of evidence.
+          </p>
+        </div>
+        <figure class="architecture-atlas" data-playing="false" data-stage="0">
+          <div class="atlas-toolbar">
+            <div>
+              <span class="atlas-kicker"><i></i> ARCHITECTURE IN MOTION</span>
+              <p>Follow an idea from research intent to recorded evidence.</p>
+            </div>
+            <div class="atlas-controls">
+              <button
+                id="motion-toggle"
+                type="button"
+                aria-pressed="false"
+                disabled
+              >
+                Play animation</button
+              ><button
+                id="map-expand"
+                type="button"
+                aria-expanded="false"
+                disabled
+              >
+                Expand diagram ↗
+              </button>
+            </div>
+          </div>
+          <div class="atlas-disclaimer">
+            CONCEPTUAL WALKTHROUGH
+            <span
+              >Illustrative motion · no Agents or experiments are running
+              here</span
+            >
+          </div>
+          <div class="atlas-legend" aria-label="Connection types">
+            <span class="command-key">Delegation &amp; operations</span
+            ><span class="feedback-key">Observations &amp; results</span
+            ><span class="exchange-key">Authorized collaboration</span
+            ><span class="evidence-key">Evidence &amp; provenance</span>
+          </div>
+          <div
+            class="map-scroll"
+            tabindex="0"
+            role="region"
+            aria-label="Research architecture diagram; scroll horizontally on smaller screens"
+          >
+            <svg
+              class="research-map"
+              viewBox="0 0 1320 920"
+              aria-labelledby="map-title map-description"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title id="map-title">
+                Dynamic organizations, three responsibility layers, one evidence
+                loop
+              </title>
+              <desc id="map-description">
+                A principal investigator delegates to research branches. Each
+                branch creates its own experiment coordinator. Coordinators
+                exchange result references with bilateral authorization.
+                Programmatic execution management submits bounded operations to
+                computation and simulated instruments; robotics, IoT and
+                scientific software adapters are future directions. Observations
+                return to coordinators, evidence returns to research, and the
+                next research decision closes the loop. State, provenance and
+                policy support every layer.
+              </desc>
+              <defs>
+                <marker
+                  id="command-arrow"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="6"
+                  refY="4"
+                  orient="auto"
+                >
+                  <path
+                    d="M 1 1 L 6 4 L 1 7"
+                    fill="none"
+                    stroke="#a8c779"
+                    stroke-width="1.4"
+                  />
+                </marker>
+                <marker
+                  id="feedback-arrow"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="6"
+                  refY="4"
+                  orient="auto"
+                >
+                  <path
+                    d="M 1 1 L 6 4 L 1 7"
+                    fill="none"
+                    stroke="#75b9b0"
+                    stroke-width="1.4"
+                  />
+                </marker>
+                <marker
+                  id="exchange-arrow"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="6"
+                  refY="4"
+                  orient="auto"
+                >
+                  <path
+                    d="M 1 1 L 6 4 L 1 7"
+                    fill="none"
+                    stroke="#d7b36b"
+                    stroke-width="1.4"
+                  />
+                </marker>
+                <marker
+                  id="evidence-arrow"
+                  markerWidth="8"
+                  markerHeight="8"
+                  refX="6"
+                  refY="4"
+                  orient="auto"
+                >
+                  <path
+                    d="M 1 1 L 6 4 L 1 7"
+                    fill="none"
+                    stroke="#afa4dc"
+                    stroke-width="1.4"
+                  />
+                </marker>
+              </defs>
+              <rect
+                class="lane"
+                x="22"
+                y="20"
+                width="1276"
+                height="254"
+                rx="18"
+              />
+              <rect
+                class="lane mid-lane"
+                x="22"
+                y="322"
+                width="1276"
+                height="249"
+                rx="18"
+              />
+              <rect
+                class="lane execution-lane"
+                x="22"
+                y="607"
+                width="1276"
+                height="154"
+                rx="18"
+              />
+              <text class="lane-index" x="47" y="51">01 / CEREBRUM</text>
+              <text class="lane-tag" x="47" y="75">Scientific decisions</text>
+              <text class="lane-index" x="47" y="353">02 / MIDBRAIN</text>
+              <text class="lane-tag" x="47" y="377">
+                Experiment coordination
+              </text>
+              <text class="lane-index" x="47" y="638">03 / CEREBELLUM</text>
+              <text class="lane-tag" x="47" y="659">
+                Physical &amp; digital execution
+              </text>
+              <path
+                class="flow-path command"
+                data-phases="0"
+                d="M 660 129 V 151 H 212 V 178"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="0"
+                d="M 660 129 V 151 H 482 V 178"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="0"
+                d="M 660 129 V 151 H 837 V 178"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="0"
+                d="M 660 129 V 151 H 1107 V 178"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="1"
+                d="M 482 246 V 375"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="1"
+                d="M 837 246 V 375"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path exchange"
+                data-phases="3"
+                d="M 600 404 H 716"
+                marker-end="url(#exchange-arrow)"
+              />
+              <path
+                class="flow-path exchange"
+                data-phases="3"
+                d="M 720 424 H 604"
+                marker-end="url(#exchange-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="2"
+                d="M 482 443 V 486"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="2"
+                d="M 837 443 V 486"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="2"
+                d="M 660 554 V 629 H 202 V 671"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="2"
+                d="M 660 554 V 629 H 457 V 671"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="2"
+                d="M 660 554 V 629 H 712 V 671"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="2"
+                d="M 660 554 V 629 H 967 V 671"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path command"
+                data-phases="2"
+                d="M 660 554 V 629 H 1195 V 671"
+                marker-end="url(#command-arrow)"
+              />
+              <path
+                class="flow-path feedback"
+                data-phases="3"
+                d="M 1280 707 H 1300 V 584 H 994 V 522 H 964"
+                marker-end="url(#feedback-arrow)"
+              />
+              <path
+                class="flow-path feedback"
+                data-phases="3 4"
+                d="M 365 411 H 336 V 270 H 395 V 250"
+                marker-end="url(#feedback-arrow)"
+              />
+              <path
+                class="flow-path feedback"
+                data-phases="4"
+                d="M 935 379 V 298 H 1130 V 250"
+                marker-end="url(#feedback-arrow)"
+              />
+              <path
+                class="flow-path feedback"
+                data-phases="5"
+                d="M 1107 182 V 151 H 822 V 97 H 799"
+                marker-end="url(#feedback-arrow)"
+              />
+              <path
+                class="flow-path evidence"
+                data-phases="4"
+                d="M 88 707 H 50 V 824 H 358"
+                marker-end="url(#evidence-arrow)"
+              />
+              <path
+                class="flow-path evidence"
+                data-phases="4"
+                d="M 655 824 H 690"
+                marker-end="url(#evidence-arrow)"
+              />
+              <path
+                class="flow-path evidence"
+                data-phases="5"
+                d="M 924 824 H 959"
+                marker-end="url(#evidence-arrow)"
+              />
+              <text class="edge-label" x="494" y="302">
+                Experimental requirements
+              </text>
+              <text class="edge-label" x="849" y="302">
+                Real parent → child
+              </text>
+              <text
+                class="edge-label gold-label"
+                x="660"
+                y="366"
+                text-anchor="middle"
+              >
+                Bilateral authorization
+              </text>
+              <text
+                class="edge-label gold-label"
+                x="660"
+                y="464"
+                text-anchor="middle"
+              >
+                Result references &amp; replies
+              </text>
+              <text class="edge-label teal-label" x="1030" y="286">
+                Evidence &amp; interpretation
+              </text>
+              <text class="edge-label teal-label" x="1040" y="581">
+                Observed state &amp; results
+              </text>
+              <g
+                class="map-node agent"
+                data-node="director"
+                data-phases="0 5"
+                role="button"
+                tabindex="0"
+                aria-label="Principal investigator: show details"
+              >
+                <rect x="525" y="65" width="270" height="64" rx="12" />
+                <circle class="node-light" cx="542" cy="86" r="3" />
+                <text class="node-title" x="554" y="90">
+                  Principal investigator
+                </text>
+                <text class="node-subtitle" x="542" y="112">
+                  Research goals · synthesis · decisions
+                </text>
+              </g>
+              <g
+                class="map-node agent"
+                data-node="literature"
+                data-phases="0"
+                role="button"
+                tabindex="0"
+                aria-label="Literature &amp; hypothesis: show details"
+              >
+                <rect x="100" y="182" width="225" height="64" rx="12" />
+                <circle class="node-light" cx="117" cy="203" r="3" />
+                <text class="node-title" x="129" y="207">
+                  Literature &amp; hypothesis
+                </text>
+                <text class="node-subtitle" x="117" y="229">
+                  Explore questions and prior evidence
+                </text>
+              </g>
+              <g
+                class="map-node agent"
+                data-node="research-a"
+                data-phases="0 1 5"
+                role="button"
+                tabindex="0"
+                aria-label="Research branch A: show details"
+              >
+                <rect x="370" y="182" width="225" height="64" rx="12" />
+                <circle class="node-light" cx="387" cy="203" r="3" />
+                <text class="node-title" x="399" y="207">
+                  Research branch A
+                </text>
+                <text class="node-subtitle" x="387" y="229">
+                  Design experiments · interpret results
+                </text>
+              </g>
+              <g
+                class="map-node agent"
+                data-node="research-b"
+                data-phases="0 1 5"
+                role="button"
+                tabindex="0"
+                aria-label="Research branch B: show details"
+              >
+                <rect x="725" y="182" width="225" height="64" rx="12" />
+                <circle class="node-light" cx="742" cy="203" r="3" />
+                <text class="node-title" x="754" y="207">
+                  Research branch B
+                </text>
+                <text class="node-subtitle" x="742" y="229">
+                  Independent context and delegation
+                </text>
+              </g>
+              <g
+                class="map-node agent"
+                data-node="critic"
+                data-phases="4 5"
+                role="button"
+                tabindex="0"
+                aria-label="Analysis &amp; critique: show details"
+              >
+                <rect x="995" y="182" width="225" height="64" rx="12" />
+                <circle class="node-light" cx="1012" cy="203" r="3" />
+                <text class="node-title" x="1024" y="207">
+                  Analysis &amp; critique
+                </text>
+                <text class="node-subtitle" x="1012" y="229">
+                  Check evidence · prepare the paper
+                </text>
+              </g>
+              <g
+                class="map-node coordinator"
+                data-node="mid-a"
+                data-phases="1 2 3"
+                role="button"
+                tabindex="0"
+                aria-label="Experiment coordinator A: show details"
+              >
+                <rect x="365" y="379" width="235" height="64" rx="12" />
+                <circle class="node-light" cx="382" cy="400" r="3" />
+                <text class="node-title" x="394" y="404">
+                  Experiment coordinator A
+                </text>
+                <text class="node-subtitle" x="382" y="426">
+                  Plan · observe · bounded adjustment
+                </text>
+              </g>
+              <g
+                class="map-node coordinator"
+                data-node="mid-b"
+                data-phases="1 2 3"
+                role="button"
+                tabindex="0"
+                aria-label="Experiment coordinator B: show details"
+              >
+                <rect x="720" y="379" width="235" height="64" rx="12" />
+                <circle class="node-light" cx="737" cy="400" r="3" />
+                <text class="node-title" x="749" y="404">
+                  Experiment coordinator B
+                </text>
+                <text class="node-subtitle" x="737" y="426">
+                  Plan · observe · bounded adjustment
+                </text>
+              </g>
+              <g
+                class="map-node control"
+                data-node="control"
+                data-phases="2 3"
+                role="button"
+                tabindex="0"
+                aria-label="Programmatic execution management: show details"
+              >
+                <rect x="360" y="490" width="600" height="64" rx="12" />
+                <circle class="node-light" cx="377" cy="511" r="3" />
+                <text class="node-title" x="389" y="515">
+                  Programmatic execution management
+                </text>
+                <text class="node-subtitle" x="377" y="537">
+                  Validate requests · reserve resources · persist operations ·
+                  wait · reconcile
+                </text>
+              </g>
+              <g
+                class="map-node provider"
+                data-node="compute"
+                data-phases="2 3"
+                role="button"
+                tabindex="0"
+                aria-label="Computation: show details"
+              >
+                <rect x="90" y="675" width="225" height="64" rx="12" />
+                <circle class="node-light" cx="107" cy="696" r="3" />
+                <text class="node-title" x="119" y="700">Computation</text>
+                <text class="node-subtitle" x="107" y="722">
+                  External jobs · installed Provider
+                </text>
+              </g>
+              <g
+                class="map-node provider"
+                data-node="instrument"
+                data-phases="2 3"
+                role="button"
+                tabindex="0"
+                aria-label="Simulated instrument: show details"
+              >
+                <rect x="345" y="675" width="225" height="64" rx="12" />
+                <circle class="node-light" cx="362" cy="696" r="3" />
+                <text class="node-title" x="374" y="700">
+                  Simulated instrument
+                </text>
+                <text class="node-subtitle" x="362" y="722">
+                  Bounded inputs · measured outputs
+                </text>
+              </g>
+              <g
+                class="map-node provider future-node"
+                data-node="robot"
+                data-phases="2 3"
+                role="button"
+                tabindex="0"
+                aria-label="Robotics &amp; navigation: show details"
+              >
+                <rect x="600" y="675" width="225" height="64" rx="12" />
+                <circle class="node-light" cx="617" cy="696" r="3" />
+                <text class="node-title" x="629" y="700">
+                  Robotics &amp; navigation
+                </text>
+                <text class="node-subtitle" x="617" y="722">
+                  Controller and skill adapters · future
+                </text>
+              </g>
+              <g
+                class="map-node provider future-node"
+                data-node="device"
+                data-phases="2 3"
+                role="button"
+                tabindex="0"
+                aria-label="Instruments &amp; IoT: show details"
+              >
+                <rect x="855" y="675" width="225" height="64" rx="12" />
+                <circle class="node-light" cx="872" cy="696" r="3" />
+                <text class="node-title" x="884" y="700">
+                  Instruments &amp; IoT
+                </text>
+                <text class="node-subtitle" x="872" y="722">
+                  Real workstation adapters · future
+                </text>
+              </g>
+              <g
+                class="map-node provider future-node"
+                data-node="software"
+                data-phases="2 3"
+                role="button"
+                tabindex="0"
+                aria-label="Scientific software: show details"
+              >
+                <rect x="1110" y="675" width="170" height="64" rx="12" />
+                <circle class="node-light" cx="1127" cy="696" r="3" />
+                <text class="node-title" x="1139" y="700">
+                  Scientific software
+                </text>
+                <text class="node-subtitle" x="1127" y="722">
+                  Domain adapters · future
+                </text>
+              </g>
+              <g class="loop-annotation">
+                <text x="66" y="457">↺</text>
+                <text class="loop-title" x="97" y="445">
+                  Execution feedback
+                </text>
+                <text class="loop-copy" x="97" y="465">
+                  Observe → adjust within authority
+                </text>
+                <text class="loop-copy" x="97" y="484">
+                  Escalate scientific changes
+                </text>
+              </g>
+              <g class="loop-annotation">
+                <text x="1030" y="455">↺</text>
+                <text class="loop-title" x="1062" y="443">Local control</text>
+                <text class="loop-copy" x="1062" y="464">
+                  Device limits and interlocks
+                </text>
+                <text class="loop-copy" x="1062" y="483">
+                  belong to the controller
+                </text>
+              </g>
+              <text class="lane-index evidence-label" x="75" y="815">
+                EVIDENCE TRAIL
+              </text>
+              <text class="loop-copy" x="75" y="839">
+                Records outlive Agent sessions
+              </text>
+              <g class="evidence-node" data-phases="4">
+                <rect x="362" y="795" width="290" height="57" rx="10" />
+                <text x="507" y="819" text-anchor="middle">
+                  Operations → raw data → artifacts
+                </text>
+                <text
+                  class="node-subtitle"
+                  x="507"
+                  y="839"
+                  text-anchor="middle"
+                >
+                  Durable records &amp; source references today
+                </text>
+              </g>
+              <g class="evidence-node" data-phases="4 5">
+                <rect x="695" y="795" width="225" height="57" rx="10" />
+                <text x="807" y="819" text-anchor="middle">
+                  Analysis → evidence → claim
+                </text>
+                <text
+                  class="node-subtitle"
+                  x="807"
+                  y="839"
+                  text-anchor="middle"
+                >
+                  Full claim graph is a future goal
+                </text>
+              </g>
+              <g class="evidence-node" data-phases="5">
+                <rect x="965" y="795" width="290" height="57" rx="10" />
+                <text x="1110" y="819" text-anchor="middle">
+                  Paper → next research question
+                </text>
+                <text
+                  class="node-subtitle"
+                  x="1110"
+                  y="839"
+                  text-anchor="middle"
+                >
+                  Autonomous scientific cycle: vision
+                </text>
+              </g>
+              <text class="map-footnote" x="660" y="891" text-anchor="middle">
+                Logical layers define responsibilities. This example graph does
+                not prescribe a fixed Agent tree.
+              </text>
+            </svg>
+          </div>
+          <p class="map-pan-hint">
+            On smaller screens, swipe across the diagram. Select a node to
+            explore its responsibility.
+          </p>
+          <div class="phase-controls" aria-label="Walkthrough stages">
+            <button type="button" data-step="0" aria-pressed="true" disabled>
+              <span>01</span>Ask & delegate</button
+            ><button type="button" data-step="1" aria-pressed="false" disabled>
+              <span>02</span>Plan experiments</button
+            ><button type="button" data-step="2" aria-pressed="false" disabled>
+              <span>03</span>Execute capabilities</button
+            ><button type="button" data-step="3" aria-pressed="false" disabled>
+              <span>04</span>Observe & coordinate</button
+            ><button type="button" data-step="4" aria-pressed="false" disabled>
+              <span>05</span>Build evidence</button
+            ><button type="button" data-step="5" aria-pressed="false" disabled>
+              <span>06</span>Decide & iterate
+            </button>
+          </div>
+          <div class="atlas-detail">
+            <div>
+              <span class="detail-kicker" id="detail-kicker"
+                >01 / SCIENTIFIC REASONING</span
+              >
+              <h3 id="map-detail-title">Start with a research question.</h3>
+            </div>
+            <p id="map-detail-copy">
+              A principal investigator can delegate literature review,
+              hypotheses, experiment design, and critique to configured roles.
+              The organization can change; the three layers describe
+              responsibilities.
+            </p>
+          </div>
+          <div class="shared-planes">
+            <article>
+              <span>STATE &amp; EVIDENCE</span>
+              <p>
+                Persistent operations, artifacts and provenance today. Rich
+                sample, laboratory and claim models are future work.
+              </p>
+            </article>
+            <article>
+              <span>POLICY &amp; EXECUTION LIMITS</span>
+              <p>
+                Live-instance authorization, scoped capabilities, resources and
+                budgets today. Device-specific protections require each real
+                adapter.
+              </p>
+            </article>
+            <article>
+              <span>ONE HOST · EXTENSIBLE CAPABILITIES</span>
+              <p>
+                DeepSeek Harness owns Agent lifecycle. Role, scenario and
+                Provider plugins extend the system without a second Agent
+                runtime.
+              </p>
+            </article>
+          </div>
+          <figcaption>
+            Research A → coordinator A and Research B → coordinator B retain
+            real parent relationships. Cross-branch exchange needs both valid
+            parents to authorize exact participants; it is not project-wide
+            messaging. Future workflow compilation, laboratory world models and
+            claim graphs are architectural directions, not implemented platform
+            services.
+          </figcaption>
+          <noscript
+            ><p class="map-pan-hint">
+              The complete diagram is available without JavaScript. Animation
+              and node selection require JavaScript.
+            </p></noscript
+          >
+        </figure>
+      </section>
+      <section class="research-cycle" aria-labelledby="cycle-title">
+        <div class="cycle-heading">
+          <span class="eyebrow">THE LONG-TERM RESEARCH CYCLE</span>
+          <h2 id="cycle-title">Every answer opens a new question.</h2>
+        </div>
+        <ol>
+          <li><span>01</span>Propose a hypothesis</li>
+          <li><span>02</span>Plan the research</li>
+          <li><span>03</span>Design &amp; execute</li>
+          <li><span>04</span>Observe &amp; adapt</li>
+          <li><span>05</span>Analyze evidence</li>
+          <li><span>06</span>Write &amp; share</li>
+        </ol>
+        <p>
+          This is the direction of the project. Infrastructure v0.1 supplies the
+          execution and collaboration foundation; a complete autonomous
+          scientific process remains future work.
+        </p>
+      </section>
+      <section class="scope-section" aria-labelledby="scope-title">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">VISION, WITH A CLEAR STARTING POINT</span>
+            <h2 id="scope-title">Built today. Open for tomorrow.</h2>
+          </div>
+        </div>
+        <div class="scope-grid">
+          <article class="scope-card">
+            <span class="scope-label available"
+              ><i></i> IMPLEMENTED · v0.1</span
+            >
+            <h3>A working foundation</h3>
+            <ul>
+              <li>
+                Configurable roles, runtime delegation, and authorized
+                cross-branch result exchange.
+              </li>
+              <li>
+                Persistent operations, request deduplication, resource
+                reservations, cancellation, and restart reconciliation.
+              </li>
+              <li>
+                A public Provider SDK, reference adapters, and a separately
+                installed external computation plugin.
+              </li>
+              <li>
+                A local dashboard and a preserved real-model research
+                demonstration.
+              </li>
+            </ul>
+            <p>
+              Verified scope: one machine, one management domain, trusted
+              plugins. The research demo is evidence of connectivity, not
+              general scientific competence.
+            </p>
+          </article>
+          <article class="scope-card future-card">
+            <span class="scope-label planned"
+              >DIRECTION · NOT YET DELIVERED</span
+            >
+            <h3>Bring the loop into the lab</h3>
+            <ul>
+              <li>
+                Connect a real instrument or a bounded experimental workstation.
+              </li>
+              <li>
+                Manage multi-step experiments while preserving resources between
+                steps.
+              </li>
+              <li>
+                Package reusable domain methods, roles, and analysis as plugins.
+              </li>
+              <li>
+                Integrate robotics, navigation, dexterous manipulation, and IoT
+                through existing controllers.
+              </li>
+            </ul>
+            <p>
+              These need their own implementations and evidence. Unknown
+              operations retain resource reservations; a cancellation request
+              alone never proves equipment has stopped.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section class="community" id="build" aria-labelledby="build-title">
+        <div>
+          <span class="eyebrow">BUILT TO BE EXTENDED</span>
+          <h2 id="build-title">
+            Your expertise.<br /><em>A new capability.</em>
+          </h2>
+          <p>
+            Bring an instrument, a computation, or a research method. Extend the
+            platform through plugins, with execution capabilities independent of
+            the organization that uses them.
+          </p>
+        </div>
+        <div class="community-actions">
+          <a
+            class="button light"
+            href="https://github.com/dazhi666666/science-harness/tree/main/integrations/ai4science/example-plugin"
+            target="_blank"
+            rel="noreferrer"
+            >Explore the example plugin ↗</a
+          ><a
+            class="community-source"
+            href="https://github.com/dazhi666666/science-harness#project-vision"
+            target="_blank"
+            rel="noreferrer"
+            >Read the project vision →</a
+          ><span
+            >Source available for review.<br />No license. Original AI4Science additions are free to use; upstream licenses still apply.</span
+          >
+        </div>
+      </section>
+    </main>
+    <footer>
+      <a class="footer-brand" href="/about">science-harness</a
+      ><span>Built on DeepSeek Harness · Extended through plugins</span
+      ><a href="/">Return to workspace ↗</a>
+    </footer>
+    <script type="module" src="/about.js"></script>
+  </body>
+</html>

@@ -1,0 +1,274 @@
+{
+  "version": "0.2.0",
+  "functionalAcceptance": "passed",
+  "modelRequests": 0,
+  "at": "2026-09-09T12:15:35.782625+00:00",
+  "initialCommunityCommit": "295c8d58c5578362a01376591ca88687c4dceb0a",
+  "testedCommunityParent": "79438e114ff414bb749c7b7b915ebdbc157bfd3e",
+  "workingTreeChangesIncluded": true,
+  "upstreamCommit": "5dda764ed3aa172535a7967b06ff95d9cbfe536a",
+  "hostModified": true,
+  "hostPatch": "patches/harness-ai4science-v0.1.patch",
+  "hostPatchSHA256": "ae184e93b7c2cc90133ec8f96cfb3dc7b6efdabe3b83023b68a3051781968883",
+  "hostPatchChangedInThisDelivery": false,
+  "environment": {
+    "os": "Darwin",
+    "arch": "arm64",
+    "node": "22.23.1",
+    "pnpm": "11.19.0",
+    "python": "3.11.9"
+  },
+  "versions": {
+    "platform": "0.2.0",
+    "providerApi": 1,
+    "executionSchema": 2,
+    "automaticMigrationFrom": [
+      1
+    ],
+    "automaticDowngrade": false
+  },
+  "commands": [
+    {
+      "command": "python3 integrations/ai4science/platform/check.py --output .ai4science/v02-final-platform",
+      "exitCode": 0,
+      "typecheck": "passed",
+      "tests": {
+        "platform": 56,
+        "crossBranch": 13,
+        "minimalPlugin": 5,
+        "teamsProbe": 5,
+        "firstLoop": 20,
+        "upstreamContinuationAndTeams": 211
+      },
+      "testTotal": 310,
+      "managementCLI": {
+        "commands": 29,
+        "assertions": 25
+      }
+    },
+    {
+      "command": "python3 integrations/ai4science/platform/experiment-check.py --output .ai4science/v02-final-experiments",
+      "exitCode": 0,
+      "commands": 29,
+      "assertions": 20,
+      "checks": [
+        "experiment request recorded without starting work",
+        "new process does not restore the prior live controller",
+        "out-of-plan proposal becomes a review requirement",
+        "program waits for observed completion",
+        "domain method reads four actual observations and reports insufficiency",
+        "additional operation receives a new identity",
+        "additional execution meets the declared data requirement",
+        "execution completion is separate from assessments and scientific conclusions",
+        "decisions retain their actual data evidence",
+        "restarted duplicate returns the existing operation",
+        "independent instrument journal proves exactly two runs and six samples",
+        "experiment budget charged once",
+        "exported assessment carries actual observed data count",
+        "external work completes after controller exit without experiment polling",
+        "restarted experiment reconnects to the original operation with fresh authority required",
+        "external experiment finishes with the existing result",
+        "experiment cancellation first records the request",
+        "cancelled experiment requires real external worker termination",
+        "partial cancelled work keeps its original budget charge",
+        "all experiment facts share the migrated transaction store"
+      ]
+    },
+    {
+      "command": "python3 integrations/ai4science/external-job/check.py --output .ai4science/v02-final-external",
+      "exitCode": 0,
+      "tests": 5,
+      "managementCLI": {
+        "commands": 15,
+        "assertions": 11
+      },
+      "installedOutsideRepository": true
+    },
+    {
+      "command": "python3 integrations/ai4science/example-plugin/check.py --output .ai4science/v02-final-example",
+      "exitCode": 0,
+      "tests": 4,
+      "commands": 14,
+      "independentWorkloadExecutions": 1
+    },
+    {
+      "command": "pnpm run doc-sync",
+      "exitCode": 1,
+      "gatesPassed": 28,
+      "gatesFailed": 6,
+      "baselineComparison": {
+        "commit": "79438e114ff414bb749c7b7b915ebdbc157bfd3e",
+        "commands": [
+          {
+            "gate": "verify-md-links",
+            "command": [
+              "node",
+              "<installed-tsx>/dist/cli.mjs",
+              "scripts/verify-md-links.ts"
+            ],
+            "exitCode": 1
+          },
+          {
+            "gate": "verify-translation-pairing",
+            "command": [
+              "node",
+              "<installed-tsx>/dist/cli.mjs",
+              "scripts/verify-translation-pairing.ts"
+            ],
+            "exitCode": 1
+          },
+          {
+            "gate": "verify-doc-graphs",
+            "command": [
+              "node",
+              "<installed-tsx>/dist/cli.mjs",
+              "scripts/gen-doc-graphs.ts",
+              "--check"
+            ],
+            "exitCode": 1
+          },
+          {
+            "gate": "verify-cordis-catalog",
+            "command": [
+              "node",
+              "<installed-tsx>/dist/cli.mjs",
+              "scripts/gen-cordis-catalog.ts",
+              "--check"
+            ],
+            "exitCode": 1
+          },
+          {
+            "gate": "verify-config-catalog",
+            "command": [
+              "node",
+              "<installed-tsx>/dist/cli.mjs",
+              "scripts/gen-config-catalog.ts",
+              "--check"
+            ],
+            "exitCode": 1
+          },
+          {
+            "gate": "verify-export-jsdoc",
+            "command": [
+              "node",
+              "<installed-tsx>/dist/cli.mjs",
+              "scripts/verify-export-jsdoc.ts"
+            ],
+            "exitCode": 1
+          }
+        ],
+        "markdownFailuresBaseline": 53,
+        "markdownFailuresFinal": 53,
+        "newMarkdownFailures": 0,
+        "currentJsdocIssuesAlsoPresentInBaseline": true,
+        "changedDocumentLinks": {
+          "documents": [
+            "README.md",
+            "architecture.md",
+            "first-loop.md"
+          ],
+          "relativeLinksChecked": 56,
+          "issues": []
+        },
+        "note": "Baseline checked in an isolated detached worktree at the recorded commit using the same installed tsx and per-package dependency links. All six current failure categories reproduce there. Preliminary baseline attempts lacked dependency links and are excluded from this comparison. The initial current doc-sync ran before the new validation JSON existed; final markdown validation has exactly the 53 baseline failures. Current five JSDoc issues also match the fully linked baseline. Host code, upstream catalogs and translation metadata were not changed; README remains English per user instruction.",
+        "sameSixFailureCategoriesReproduced": true
+      },
+      "failures": [
+        "markdown links",
+        "doc graphs",
+        "cordis catalog",
+        "translation pairing",
+        "export jsdoc",
+        "config catalog"
+      ]
+    }
+  ],
+  "newAcceptance": {
+    "experimentTests": 14,
+    "nativeOrganizationTests": 2,
+    "organizationFiles": [
+      "integrations/ai4science/platform/examples/sampling.compact.organization.json",
+      "integrations/ai4science/platform/examples/sampling.hierarchical.organization.json"
+    ],
+    "observedSampling": {
+      "initial": 4,
+      "supplement": 2,
+      "required": 6,
+      "providerStarts": 2
+    },
+    "additionalDecisionUsesActualToolEvidence": true,
+    "independentWorkerCancellationSignal": "SIGTERM"
+  },
+  "limits": [
+    "One trusted local management domain; no new Agent runtime, scheduler or message service.",
+    "Experiment actions are a finite immutable catalog of exact inputs, not arbitrary parameter planning or a workflow compiler.",
+    "No old controller or cross-branch permission is restored from persistent actor IDs.",
+    "Unknown operations block further experiment actions and retain resources and full budget; cancellation requires observed terminal outcomes.",
+    "Program waits poll existing Provider queries; timeout or stopping observation does not imply device cancellation.",
+    "Experiment access currently requires scopes for every Provider named in its request. Bounded workers must not also receive unrestricted standalone execution tools.",
+    "Generic completion verifies execution/provenance; domain policy and scientific conclusions are separate. No real-model scientific evaluation was run.",
+    "The existing dashboard remains operation-level; experiment interaction uses CLI/tools/SDK.",
+    "Provider descriptors must faithfully version non-secret configuration. Fingerprints do not attest plugin binaries.",
+    "Physical devices, distributed deployments, power-loss durability, Linux/Windows and model-thought recovery were not verified."
+  ],
+  "sourceSHA256": {
+    "integrations/ai4science/platform/artifacts.ts": "12692eac26b1663a565e7219d4a9beb06f9f67b8cbc64454ec7beff601acc861",
+    "integrations/ai4science/platform/check.py": "1c1eacee0b677adcdbc8f5354d75af9b2eda3b84827483aea59b68537bd9bb54",
+    "integrations/ai4science/platform/cli-check.py": "491a6e4eabd40239987a8497bdf3dd35549e1fcb7a9f3c1569dd0470b79c45dd",
+    "integrations/ai4science/platform/cli.ts": "713fd7c92f48ee403e113642b8db7a0e57355dd27389b394ebd7742908a5bc12",
+    "integrations/ai4science/platform/config.ts": "e6bab2261276150e150f2c159bc16daad12916c4d9a337193a7bc12c2cd66f22",
+    "integrations/ai4science/platform/dashboard-demo.py": "a43fede502fce7f61a979bc78979702680f611926c964dfcf7be679781a039c2",
+    "integrations/ai4science/platform/dashboard.spec.ts": "286df77f854df72896c741bb85cc768102006668fab1c64b1781aed2f05f0c34",
+    "integrations/ai4science/platform/dashboard.ts": "7d1154a49b538a7bf8a995381f389f627264251bbef0cdf101517ed7f728f0fb",
+    "integrations/ai4science/platform/examples/compute-input.json": "738dd0a64ded8f379656a3739d7ddad69640a60fbf906df31a7e5eaea2cc9a24",
+    "integrations/ai4science/platform/examples/instrument-input.json": "a364cd99f4dbbaede0fd6e9cb4fd7a010021ae25acd9326569b31b6fd953e178",
+    "integrations/ai4science/platform/examples/local.config.json": "201e9d6996188f5f887a86c92f70a45c259cce6b3bf60f652cc7d877f795ad47",
+    "integrations/ai4science/platform/examples/sampling.compact.organization.json": "6dad9d819032a62421d8419981fd2fab1775afc685df99c15e06d9af2bfb8755",
+    "integrations/ai4science/platform/examples/sampling.hierarchical.organization.json": "fcb67b46cda0ba0619a50dbbfabfb94414b0634f132bd95833053a8da57e38ff",
+    "integrations/ai4science/platform/examples/sampling.request.json": "bec03048aa752c522c09d2eeac024d333efd40ac40259e3a2756140a6e9f04eb",
+    "integrations/ai4science/platform/execution.spec.ts": "5fa0d177f0c679882a6348f3343d69d63eef4041fe764d8ad5064703ecb56bad",
+    "integrations/ai4science/platform/execution.ts": "cc5be02155364e5cdfe68714ac842d9dc085dffa6bc1c094adc798ab688fdf77",
+    "integrations/ai4science/platform/experiment-check.py": "635e31de856cd9ee2e0cea3b3596597bed38a7cb3e43fd392d9c6f6de6d41257",
+    "integrations/ai4science/platform/experiment-organizations.spec.ts": "24be4a17296e41794b59adf2e751eb6daa0f777297fc097cf4d6b34220ceb8bf",
+    "integrations/ai4science/platform/experiment-tools.ts": "9d5b0cfff93f5e01d015d22776b6a0d3f345ec9c54d4297291e02ccdb5b6d07a",
+    "integrations/ai4science/platform/experiments.spec.ts": "794d9c92900058f9b0aec307b6e81c32f14d31756e527184aaed8b6b34185c17",
+    "integrations/ai4science/platform/experiments.ts": "5c8f1fa0802c585094898d859f26e22249a785d0d54c6b34baed99e8ab6228c1",
+    "integrations/ai4science/platform/host-plugin.ts": "cc6fcc580b203b78bc8a1303fc1d96b4fa8c1771fdffa6297832070f0ad5cc09",
+    "integrations/ai4science/platform/index.ts": "ce859c683d23fd10790a0efd133d623e84d0f18059651155880eb3c04b59ba4f",
+    "integrations/ai4science/platform/install.py": "76194ee02350bf2538d7fa041d097377b7ad5a96d09b157f154eb96cf5a1cfa9",
+    "integrations/ai4science/platform/manage.py": "7c0befdf1546926c7b579d4d900a67202f56c13dded52ad43b4a3deee5058422",
+    "integrations/ai4science/platform/organization-fixture.ts": "96ca5d3657fd5448402a0ac7b41514d7a90d3854313b716a1ebcc3893e8915e3",
+    "integrations/ai4science/platform/organization.spec.ts": "7cc77e3cfefa58dceb669922e9247ad8c63978789514e736258a3f599d4f4250",
+    "integrations/ai4science/platform/organization.ts": "52cf0e9023d611fe586a0ff6ab04f5020cb1a2487de798aea86e1afbcdaa128f",
+    "integrations/ai4science/platform/package.json": "526b01f324515fce6df35ef03b9da6aaef52386ef1d360d7660df19590728385",
+    "integrations/ai4science/platform/plugin.spec.ts": "dde079ff1ba50c93426325ae9ef34275e67a79e094bd6fd0f46e59ce62a85eb7",
+    "integrations/ai4science/platform/plugin.ts": "2e1b07b88a94673cb575717e31c83ac52dc4ebd749256415b6bafd2607dad4ac",
+    "integrations/ai4science/platform/providers/compute.ts": "3a69d61a4a3818df003b72fd8353c4cd3c78046b52a0efec34bf05eaeddb9118",
+    "integrations/ai4science/platform/providers/instrument.ts": "30d4bd6379b8fb776a1cb7a12fa5cf34a9e6b2f91f903fa0cc82cf39e480a8c0",
+    "integrations/ai4science/platform/providers-control.spec.ts": "7cb2153cd7b023c6411accb3ae7d035c899bbe48517864b73428afbee2d57c2c",
+    "integrations/ai4science/platform/providers.spec.ts": "6330c2ac0402c871cfa922b678baec378c5955450a770ee8fcb5e77e222f1ece",
+    "integrations/ai4science/platform/scenes/chain.json": "a793bf6df80f6294f802506721f37bf2ffc8efea783cf3f618840f8b23615612",
+    "integrations/ai4science/platform/scenes/first-loop.json": "89dd7b2869a4cfd3eed240bc33b740dbf30002af8e42fb79f2972ac04edf8c0c",
+    "integrations/ai4science/platform/scenes/first-loop.spec.ts": "fd62afb3dc2814fea9e423b127ac38ad1edccb8ec44d2205ff75d3b2fc8e7248",
+    "integrations/ai4science/platform/scenes/first-loop.ts": "561a67f6a71de163a66ae3c880b8a2073e7980ae17b67c6cbaa8ff2d978e3de1",
+    "integrations/ai4science/platform/scenes/fork.json": "c191464735a64dd0f0cb6610583543fa576993268634e2086bdc31aeacb51f10",
+    "integrations/ai4science/platform/scenes/sampling.ts": "a2e778f155f10d95ff6b8502596ea568df9b6be23bb1aa1913bac973395006e6",
+    "integrations/ai4science/platform/sdk.ts": "459390332c8d0c6e3c91e1801e1c88994d4f001909609f07f3b93663b65e1b20",
+    "integrations/ai4science/platform/setup.py": "2e437f13d3d97af9851f467f49c5fef5a4fb9843a9ab590220a1c2d29deedf60",
+    "integrations/ai4science/platform/testing.ts": "eae0b4a391beceb0d3622c08a6b5307bba4f506a8c77ca7b607a17fe6396b14b",
+    "integrations/ai4science/platform/tsconfig.json": "6378aeaaee6ae918e8d98b672bbcb56186a519252a2ff9ff8ce8847e207975e0",
+    "integrations/ai4science/platform/upstream-tools.spec.ts": "78d0da92b4b923d812f139e38bc8feb6d67f7d2ae645da8e892cddb40c283f96",
+    "integrations/ai4science/platform/upstream.py": "859564d9dcca54603789fc2afb3762bc75a9b8ff6302d398fa69d26568413cf7",
+    "integrations/ai4science/platform/upstream.spec.ts": "eda92e165253fcadb7441207058f4f10d4a1aef0d20a4997ee6f01ad3207dd57",
+    "integrations/ai4science/platform/version.ts": "99279618136adfbac1322ac60faf812a20fe93eb38ab422564f781800adf20df",
+    "integrations/ai4science/platform/vitest.config.ts": "86f677a113a8f54027796effad56f9f8b311878a63e745f770fada35cad380ee"
+  },
+  "rawEvidenceLocalOnly": [
+    ".ai4science/v02-final-platform/",
+    ".ai4science/v02-final-experiments/",
+    ".ai4science/v02-final-external/",
+    ".ai4science/v02-final-example/",
+    "integrations/ai4science/evidence/platform/organization/experiment-*"
+  ],
+  "remoteCI": "not-yet-run-for-this-change"
+}

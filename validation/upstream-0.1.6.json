@@ -1,0 +1,361 @@
+{
+  "status": "passed-local-functional-checks",
+  "date": "2026-09-18",
+  "previousCommunityCommit": "0a6c0b4a7e032014418c218a8918140c4a425885",
+  "previousUpstreamCommit": "5dda764ed3aa172535a7967b06ff95d9cbfe536a",
+  "upstreamCommit": "ddefc45fbc7f8e46dd73185e68295696d1297887",
+  "upstreamVersion": "0.1.6-alpha.2",
+  "upstreamBranch": "master",
+  "upstreamNewCommits": 1970,
+  "hostModified": true,
+  "hostPatchSHA256": "c14760f50a6ed0bff6d39341c3af8c28dc9decb8912f56d140115e5cf9b04c45",
+  "hostPatchReverseApplyCheck": "passed",
+  "sessionFormatVersion": 3,
+  "executionSchemaVersion": 2,
+  "modelRequests": 0,
+  "githubCI": "pending integration push",
+  "tests": {
+    "platform": 56,
+    "crossBranch": 15,
+    "minimal": 5,
+    "teams": 5,
+    "firstLoop": 20,
+    "upstreamContinuationAndTeam": 240,
+    "upstreamSessionMigrationAndLifecycleAndCatalog": 93,
+    "externalJob": 5,
+    "exampleProvider": 4,
+    "totalVitestAndNodeTests": 443,
+    "evidenceCollectorPythonTests": 3
+  },
+  "cli": {
+    "platform": {
+      "commands": 29,
+      "assertions": 25
+    },
+    "experiment": {
+      "commands": 29,
+      "assertions": 20
+    },
+    "external": {
+      "commands": 15,
+      "assertions": 11
+    },
+    "example": {
+      "commands": 14,
+      "independentWorkloadExecutions": 1
+    }
+  },
+  "compatibilityChanges": [
+    "Merged the upstream dynamic continuable capacity supplier with startup-only science exchange settings in the named host Config.",
+    "Cross-branch cold delivery remains in the native activation path and rejects capacity exhaustion; successful retry follows slot release.",
+    "Final synchronous authority checks reject a revoked grant after an awaited asynchronous agent/created initializer.",
+    "Loader entry.update no longer awaits plugin readiness; the unload regression now awaits entry.fiber.await and retains the original positive and negative assertions.",
+    "Upstream now directly owns the Schemastery dependency; redundant local package and tsconfig additions were retired.",
+    "Community README, dashboard, experiment layer and CI remain; upstream release and administration workflows are not enabled.",
+    "Preserved the community README pairing sidecar with its existing English README/redirect rather than adopting hashes for the upstream bilingual README. The known full-corpus pairing diagnostic remains documented; no hooks were disabled."
+  ],
+  "recordUpgrade": {
+    "success": true,
+    "oldPinRejectedBeforeExplicitUpdate": true,
+    "existingFactsUnchanged": true,
+    "completedOperationReplayed": false,
+    "experimentControllerRestored": false,
+    "providerStarts": 1,
+    "samples": 4,
+    "artifactsVerified": 2,
+    "commands": 12,
+    "modelRequests": 0,
+    "commandsExecuted": [
+      {
+        "checkout": "previous",
+        "argv": [
+          "python3",
+          "<previous-checkout>/integrations/ai4science/platform/install.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/old-home",
+          "--config",
+          "<updated-checkout>/.ai4science/upstream-records-02/deployment.json"
+        ],
+        "exitCode": 0
+      },
+      {
+        "checkout": "previous",
+        "argv": [
+          "python3",
+          "<previous-checkout>/integrations/ai4science/platform/manage.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/old-home",
+          "create",
+          "--project",
+          "upgrade",
+          "--budget",
+          "10"
+        ],
+        "exitCode": 0
+      },
+      {
+        "checkout": "previous",
+        "argv": [
+          "python3",
+          "<previous-checkout>/integrations/ai4science/platform/manage.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/old-home",
+          "experiment-create",
+          "--project",
+          "upgrade",
+          "--key",
+          "pre-upgrade",
+          "--input",
+          "<updated-checkout>/.ai4science/upstream-records-02/request.json"
+        ],
+        "exitCode": 0
+      },
+      {
+        "checkout": "previous",
+        "argv": [
+          "python3",
+          "<previous-checkout>/integrations/ai4science/platform/manage.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/old-home",
+          "experiment-act",
+          "--project",
+          "upgrade",
+          "--experiment",
+          "8cacbb50-1aef-4873-80e4-674afb8cb2dd",
+          "--input",
+          "<updated-checkout>/.ai4science/upstream-records-02/decision.json"
+        ],
+        "exitCode": 0
+      },
+      {
+        "checkout": "previous",
+        "argv": [
+          "python3",
+          "<previous-checkout>/integrations/ai4science/platform/manage.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/old-home",
+          "experiment-wait",
+          "--project",
+          "upgrade",
+          "--experiment",
+          "8cacbb50-1aef-4873-80e4-674afb8cb2dd",
+          "--until",
+          "decision"
+        ],
+        "exitCode": 0
+      },
+      {
+        "checkout": "previous",
+        "argv": [
+          "python3",
+          "<previous-checkout>/integrations/ai4science/platform/manage.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/old-home",
+          "experiment-status",
+          "--project",
+          "upgrade",
+          "--experiment",
+          "8cacbb50-1aef-4873-80e4-674afb8cb2dd"
+        ],
+        "exitCode": 0
+      },
+      {
+        "checkout": "updated",
+        "argv": [
+          "python3",
+          "<updated-checkout>/integrations/ai4science/platform/install.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/new-home",
+          "--config",
+          "<updated-checkout>/.ai4science/upstream-records-02/deployment.json"
+        ],
+        "exitCode": 0
+      },
+      {
+        "checkout": "updated",
+        "argv": [
+          "python3",
+          "<updated-checkout>/integrations/ai4science/platform/manage.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/new-home",
+          "experiment-status",
+          "--project",
+          "upgrade",
+          "--experiment",
+          "8cacbb50-1aef-4873-80e4-674afb8cb2dd"
+        ],
+        "exitCode": 1
+      },
+      {
+        "checkout": "updated",
+        "argv": [
+          "python3",
+          "<updated-checkout>/integrations/ai4science/platform/manage.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/new-home",
+          "experiment-status",
+          "--project",
+          "upgrade",
+          "--experiment",
+          "8cacbb50-1aef-4873-80e4-674afb8cb2dd"
+        ],
+        "exitCode": 0
+      },
+      {
+        "checkout": "updated",
+        "argv": [
+          "python3",
+          "<updated-checkout>/integrations/ai4science/platform/manage.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/new-home",
+          "experiment-act",
+          "--project",
+          "upgrade",
+          "--experiment",
+          "8cacbb50-1aef-4873-80e4-674afb8cb2dd",
+          "--input",
+          "<updated-checkout>/.ai4science/upstream-records-02/decision.json"
+        ],
+        "exitCode": 0
+      },
+      {
+        "checkout": "updated",
+        "argv": [
+          "python3",
+          "<updated-checkout>/integrations/ai4science/platform/manage.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/new-home",
+          "export",
+          "--project",
+          "upgrade",
+          "--artifact",
+          "158a8c0478792c3b2d82b78db09a276009c2009425cf9c97e37896d0b2207452",
+          "--target",
+          "<updated-checkout>/.ai4science/upstream-records-02/export-158a8c0478792c3b2d82b78db09a276009c2009425cf9c97e37896d0b2207452"
+        ],
+        "exitCode": 0
+      },
+      {
+        "checkout": "updated",
+        "argv": [
+          "python3",
+          "<updated-checkout>/integrations/ai4science/platform/manage.py",
+          "--home",
+          "<updated-checkout>/.ai4science/upstream-records-02/new-home",
+          "export",
+          "--project",
+          "upgrade",
+          "--artifact",
+          "a60d1e116fce6128244b782bf9fd099d7c1fbf0cc8fcc0fd7944f3fb18ad4f91",
+          "--target",
+          "<updated-checkout>/.ai4science/upstream-records-02/export-a60d1e116fce6128244b782bf9fd099d7c1fbf0cc8fcc0fd7944f3fb18ad4f91"
+        ],
+        "exitCode": 0
+      }
+    ]
+  },
+  "initialFailures": [
+    {
+      "command": "python3 integrations/ai4science/platform/check.py --output .ai4science/upstream-platform-01",
+      "outcome": "12 of 13 cross-branch tests passed; reload completion assertion failed because entry.update returns before the Fiber settles. Fixed by explicitly awaiting the native lifecycle, then reran all 15 cross-branch cases."
+    },
+    {
+      "command": "python3 .ai4science/check-existing-records.py",
+      "outcome": "First local verification script misread relative artifact paths. Corrected paths relative to the execution directory and reran against fresh old-version records; no product change needed."
+    }
+  ],
+  "commands": [
+    {
+      "command": "python3 integrations/ai4science/platform/setup.py",
+      "exitCode": 0
+    },
+    {
+      "command": "python3 integrations/ai4science/platform/check.py --output .ai4science/upstream-platform-02",
+      "exitCode": 0
+    },
+    {
+      "command": "pnpm exec tsc -p integrations/ai4science/cross-branch/tsconfig.json",
+      "exitCode": 0
+    },
+    {
+      "command": "pnpm exec vitest run --config integrations/ai4science/cross-branch/vitest.config.ts --reporter=verbose",
+      "exitCode": 0
+    },
+    {
+      "command": "pnpm exec vitest run packages/session/session-persistence-jsonl/tests/v2-system-migration.spec.ts packages/session/session-persistence-jsonl/tests/v2-ptc-migration.spec.ts packages/session/session-persistence-jsonl/tests/migration-refusal.spec.ts packages/core/agent-loop/tests/serial-listener-review.spec.ts packages/core/agent-loop/tests/scope-lifecycle.spec.ts packages/subagent/subagent/tests/catalog.spec.ts --reporter=verbose",
+      "exitCode": 0
+    },
+    {
+      "command": "python3 integrations/ai4science/platform/experiment-check.py --output .ai4science/upstream-experiments-01",
+      "exitCode": 0
+    },
+    {
+      "command": "python3 integrations/ai4science/external-job/check.py --output .ai4science/upstream-external-01",
+      "exitCode": 0
+    },
+    {
+      "command": "python3 integrations/ai4science/example-plugin/check.py --output .ai4science/upstream-example-01",
+      "exitCode": 0
+    },
+    {
+      "command": "python3 integrations/ai4science/platform/collect-evidence-test.py",
+      "exitCode": 0
+    },
+    {
+      "command": "git apply --reverse --check patches/harness-ai4science-v0.1.patch",
+      "exitCode": 0
+    },
+    {
+      "command": "pnpm run doc-sync",
+      "exitCode": 1,
+      "passed": 31,
+      "failed": 10
+    },
+    {
+      "command": "pnpm run typecheck",
+      "exitCode": 0,
+      "scope": "Full upstream host build and client project typecheck"
+    }
+  ],
+  "documentationDiagnostics": {
+    "notClaimedPassing": true,
+    "failures": [
+      "doc graphs",
+      "markdown links",
+      "cordis catalog",
+      "translation pairing",
+      "export jsdoc",
+      "config catalog",
+      "persistence catalog",
+      "persistence type history",
+      "repository references",
+      "concrete terms"
+    ],
+    "explanation": "The fork retains a local host extension and English community README, and omits upstream-owned workflows. Upstream generated catalogs do not incorporate the extension; pairing/link checks flag fork differences. New upstream prose/reference checks also reject existing community source and exact commit-based verification records. No gate was disabled or failure converted into success. Only the three existing community documents were revised; upstream-generated design/catalog documents and historical records were not rewritten.",
+    "persistentScienceMessageDeclarationUnchanged": true,
+    "communityDocumentLinks": {
+      "checked": 58,
+      "failures": []
+    }
+  },
+  "limits": [
+    "macOS arm64 verified locally. No real-model research rerun or scientific-quality evaluation.",
+    "Old deployment baseline must be explicitly updated. Keep Provider versions and original directories for unresolved operations.",
+    "No restoration of live Agent or experiment-controller authorization from disk.",
+    "Upstream product surfaces outside AI4Science integration are not exhaustively validated here.",
+    "Session V3 and execution schema 2 unchanged; the existing v1 to v2 execution migration is retained."
+  ],
+  "sourceSHA256": {
+    "package.json": "2757ea609f0f01133140f251f3a66eb7708c569406c3e3889f9da6c70a267087",
+    "packages/subagent/subagent/src/index.ts": "1ab25df7166cb86aebcd3e4a8e4ac3c91afe5c48b7510dd189dcaf4700c33bc1",
+    "packages/subagent/subagent/src/continuation.ts": "8fedcda4cb590c53954f45b36f1a465bc65f95f16d8f2f50363c1af8cee6dd9e",
+    "packages/subagent/subagent/src/science-results.ts": "852fdee2f36212730507cd865d0406e79e2839a95d4b31b1ba7176d3e9165935",
+    "packages/subagent/subagent/src/continuation-activation.ts": "ac53060a7bc2d2a5490e5543b6762b348df322d47abc63b5124893f78bbd4328",
+    "UPSTREAM.json": "4e38dc6a1b53c8aab746365a6cadd6e18dbf69af528cea02f7a04f5a28b93b26",
+    "integrations/ai4science/cross-branch/cross-branch.spec.ts": "a1155a7b27936c095d56dea35b379d46198dcc4b9b33bdef6290ef11bc92d9ed",
+    "integrations/ai4science/cross-branch/fixture.ts": "eda12a251ec18fb63461b6a1668f7660496ca72eff423f4388a9ebd3551fdf0f",
+    "integrations/ai4science/platform/examples/local.config.json": "be086060e284d43b49e7c72e62559892b523115293f7a864544e11b084e98598"
+  },
+  "integrationCommit": "5923aa67db0eaf00ddf6cad09fd563586f658305",
+  "commitHooks": "Passed translation checks for changed pairing records, archived notes, staged lint, third-party notices, whitespace and vendor guard. Full-corpus document diagnostics remain as recorded."
+}

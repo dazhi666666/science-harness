@@ -1,0 +1,13 @@
+{
+  "apiVersion": 1,
+  "enabled": true,
+  "baseline": "ddefc45fbc7f8e46dd73185e68295696d1297887",
+  "directory": "./local-data/platform",
+  "pollIntervalMs": 50,
+  "providerCallTimeoutMs": 10000,
+  "management": { "actorId": "local-operator", "projects": ["example"], "allowedProviders": ["instrument", "compute"] },
+  "providers": [
+    { "module": "../providers/instrument.ts", "config": { "id": "instrument", "directory": "./local-data/instrument", "resource": "instrument-1", "tickMs": 25, "reference": 10, "slope": 0.27, "drift": 0.012, "noise": 0.18, "seed": 123 } },
+    { "module": "../providers/compute.ts", "config": { "id": "compute", "directory": "./local-data/compute", "resource": "compute-1", "tickMs": 100, "chunkSize": 5 } }
+  ]
+}

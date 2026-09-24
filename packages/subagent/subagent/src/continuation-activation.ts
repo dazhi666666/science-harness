@@ -509,6 +509,7 @@ export class ContinuableActivationRegistry {
    * @param delivery - the Agent inbox destination.
    * @param parent - exact live direct parent authorizing admission.
    * @param signal - caller cancellation before inbox acceptance.
+   * @param beforeAccept - Optional authority reservation immediately before enqueue; returns a rollback for failed delivery.
    * @returns the accepted durable message id.
    */
   submitAdmitted(
@@ -517,6 +518,7 @@ export class ContinuableActivationRegistry {
     delivery: SubagentDelivery,
     parent: Agent,
     signal: AbortSignal,
+    beforeAccept?: (id: MessageId) => () => void,
   ): MessageId {
     signal.throwIfAborted()
     this.assertAdmitting(parent)
@@ -526,8 +528,13 @@ export class ContinuableActivationRegistry {
       activation.handle.agent.session.header.parentSession,
     )
     this.acquireOwnership(parent, activation.childId)
+    let rollback: (() => void) | undefined
     try {
+      rollback = beforeAccept?.(message.id)
       activation.inbox.deliver(message, delivery)
+    } catch (error) {
+      rollback?.()
+      throw error
     } finally {
       this.wake(activation)
     }

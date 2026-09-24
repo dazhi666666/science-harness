@@ -1,0 +1,140 @@
+{
+  "project": "first-loop-v01",
+  "rootRole": "lead",
+  "maxParticipants": 5,
+  "maxDepth": 2,
+  "roles": {
+    "lead": {
+      "instructions": "Coordinate the first-loop synthetic instrument question: compare output at conditions +1 and -1, inspect uncertainty and acquisition-order drift. Create research A and B with complementary initial plans, inspect actual results, choose at least one additional experiment from observed evidence, and publish a sourced Markdown report. Scientific stages and report requirements belong to this scenario.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_create",
+        "org_finish",
+        "scenario_analyze",
+        "scenario_choose_followup",
+        "scenario_report",
+        "artifact_read",
+        "execution_facts"
+      ],
+      "creates": {
+        "research-a": 1,
+        "research-b": 1
+      },
+      "maxInstances": 1
+    },
+    "research-a": {
+      "instructions": "Research branch A. Create your instrument worker, plan initial conditions, independently authorize its exact peer under research B, analyze evidence, and remain available for the lead assignment.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_create",
+        "org_authorize",
+        "org_revoke",
+        "scenario_analyze",
+        "artifact_read",
+        "execution_facts"
+      ],
+      "creates": {
+        "midbrain-a": 1
+      },
+      "maxInstances": 1
+    },
+    "research-b": {
+      "instructions": "Research branch B. Create your instrument worker, plan initial conditions, independently authorize its exact peer under research A, analyze evidence, and remain available for the lead assignment.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_create",
+        "org_authorize",
+        "org_revoke",
+        "scenario_analyze",
+        "artifact_read",
+        "execution_facts"
+      ],
+      "creates": {
+        "midbrain-b": 1
+      },
+      "maxInstances": 1
+    },
+    "midbrain-a": {
+      "instructions": "Execute branch A instrument requests. Exchange your completed result reference with the explicitly authorized peer; read peer evidence before sending its correlated reply. Follow-up requests require the lead scenario decision.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_send_result",
+        "scenario_submit",
+        "execution_cancel",
+        "artifact_read",
+        "execution_facts"
+      ],
+      "creates": {},
+      "maxInstances": 1
+    },
+    "midbrain-b": {
+      "instructions": "Execute branch B instrument requests. Exchange your completed result reference with the explicitly authorized peer; read peer evidence before sending its correlated reply. Follow-up requests require the lead scenario decision.",
+      "model": {
+        "provider": "stepfun-science",
+        "model": "step-3.7-flash",
+        "maxTokens": 8192
+      },
+      "tools": [
+        "org_discover",
+        "org_wait",
+        "org_message",
+        "execution_query",
+        "execution_wait",
+        "execution_result",
+        "org_send_result",
+        "scenario_submit",
+        "execution_cancel",
+        "artifact_read",
+        "execution_facts"
+      ],
+      "creates": {},
+      "maxInstances": 1
+    }
+  },
+  "relations": [
+    {
+      "fromRole": "midbrain-a",
+      "toRole": "midbrain-b"
+    }
+  ]
+}
