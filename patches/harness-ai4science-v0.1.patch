@@ -1,5 +1,5 @@
 diff --git a/package.json b/package.json
-index 5e7ce892f0..ffcf42660c 100644
+index 16cfb7af43..865855c73d 100644
 --- a/package.json
 +++ b/package.json
 @@ -4,7 +4,7 @@
@@ -161,19 +161,19 @@ index 87fae7096a..36b31a1df4 100644
    }
  
 diff --git a/packages/subagent/subagent/src/index.ts b/packages/subagent/subagent/src/index.ts
-index 5d2941be6a..0a349eb202 100644
+index 2a79339563..f836782619 100644
 --- a/packages/subagent/subagent/src/index.ts
 +++ b/packages/subagent/subagent/src/index.ts
-@@ -31,6 +31,8 @@
+@@ -32,6 +32,8 @@ import type { Volatile } from '@deepseek-ai/cordis'
  
  import { Context } from '@deepseek-ai/cordis'
  import z from '@deepseek-ai/schemastery'
 +import type { ScienceResultExchange } from './science-results.ts'
 +export type { SciencePeerConsent, ScienceResultMessage, ScienceResultReader, ScienceResultSource } from './science-results.ts'
- import type {} from '@deepseek-ai/dsh-settings'
  import type {} from '@deepseek-ai/dsh-attachment'
  import { scopeTarget } from '@deepseek-ai/dsh-scope'
-@@ -188,6 +190,12 @@ interface BrowserPromptSource {
+ import type { Scoped } from '@deepseek-ai/dsh-scope'
+@@ -190,6 +192,12 @@ interface BrowserPromptSource {
  
  /** Host configuration for continuable subagent capacity. */
  export interface Config {
@@ -184,28 +184,28 @@ index 5d2941be6a..0a349eb202 100644
 +  /** Maximum pending result references, fixed when the extension starts. */
 +  scienceResultMaxPending?: number
    /** Maximum live children sharing uninterrupted continuable parent links; defaults to 8. */
-   maxActiveSubagents?: number
+   maxActiveSubagents: Volatile<number>
    /** Default delegation depth for tools without an explicit limit; defaults to 1. */
-@@ -197,6 +205,9 @@ export interface Config {
+@@ -199,6 +207,9 @@ export interface Config {
  /** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
  export class SubagentRuntime extends TypertRemoteService {
-   static Config: z<Config> = z.object({
+   static Config = z.object({
 +    scienceResultProject: z.string().min(1),
 +    scienceResultMaxPairs: z.number().step(1).min(1).max(128).default(1),
 +    scienceResultMaxPending: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(32),
-     maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1),
-     maxActiveSubagents: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(8),
+     maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1).volatile(),
+     maxActiveSubagents: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(8).volatile(),
    })
-@@ -226,7 +237,7 @@ export class SubagentRuntime extends TypertRemoteService {
+@@ -218,7 +229,7 @@ export class SubagentRuntime extends TypertRemoteService {
        const manager = new SubagentContinuationManager(childCtx, {
          prepareContinuable: (name, request) => this.prepareContinuable(name, request),
          observeActivation: (provider, childId, parent) => this.observeActivation(provider, childId, parent),
--      }, () => (this.settingsSource() as Required<Config>).maxActiveSubagents)
-+      }, () => (this.settingsSource() as Required<Config>).maxActiveSubagents, config)
+-      }, () => this.config.maxActiveSubagents.get())
++      }, () => this.config.maxActiveSubagents.get(), config)
        this.continuations = manager
        childCtx.effect(() => () => {
          /* v8 ignore else -- one injected binding owns the slot until its fiber disposes. */
-@@ -263,6 +274,11 @@ export class SubagentRuntime extends TypertRemoteService {
+@@ -262,6 +273,11 @@ export class SubagentRuntime extends TypertRemoteService {
      return this.requireContinuations().startContinuable(spec)
    }
  

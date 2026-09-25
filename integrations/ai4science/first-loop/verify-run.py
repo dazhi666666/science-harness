@@ -102,7 +102,7 @@ def verify(root, checks, inspect_incomplete=False):
         headers = [e['data']['header']['config'] for e in rows if e['type'] == 'request/header']
         require(headers and all(h['provider'] == 'stepfun-science' and h['model'] == 'step-3.7-flash' for h in headers), f'Native request headers missing/wrong for {id}')
         issued = {b['id']: b for e in rows if e['type'] == 'assistant/message' for b in e['data']['message']['content'] if b['type'] == 'tool-call'}
-        returns = {b['toolCallId']: (e, b) for e in rows if e['type'] == 'tool/result' for b in e['data']['message']['content'] if b['type'] == 'tool-result'}
+        returns = {e['data']['message']['toolCallId']: (e, e['data']['message']) for e in rows if e['type'] == 'tool/result'}
         for e in rows:
             if e['type'] != 'tool/call':
                 continue
@@ -302,7 +302,7 @@ def archive_attempts(root, destination):
         if rows[0]['id'] not in lead_ids:
             continue
         issued = {b['id']: b for e in rows if e['type'] == 'assistant/message' for b in e['data']['message']['content'] if b['type'] == 'tool-call'}
-        returns = {b['toolCallId']: b for e in rows if e['type'] == 'tool/result' for b in e['data']['message']['content'] if b['type'] == 'tool-result'}
+        returns = {e['data']['message']['toolCallId']: e['data']['message'] for e in rows if e['type'] == 'tool/result'}
         for event in rows:
             if event['type'] != 'tool/call' or event['data']['name'] != 'science_write_report':
                 continue

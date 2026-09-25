@@ -47,7 +47,8 @@ for (const targetState of ['running', 'idle', 'inactive'] as const) {
     model.queue('a', textResponse('A ready'))
     const a = (await spawn(probe, owner.agent, 'a')).member
     await absent(probe, a.id)
-    expect(ctx.agentTeams.listMembers(owner.agent).find(member => member.id === b.id)?.status).toBe(targetState)
+    // The roster projects live-but-idle members as 'inactive'; only 'running' survives.
+    expect(ctx.agentTeams.listMembers(owner.agent).find(member => member.id === b.id)?.status).toBe(targetState === 'running' ? 'running' : 'inactive')
     const aHeader = (await stored(probe, a.id)).header
     const bHeader = (await stored(probe, b.id)).header
     expect(aHeader.parentSession).toBe(owner.agent.id)

@@ -20,7 +20,7 @@ def main():
     path=root/'config.json';path.write_text(json.dumps(config,indent=2)+'\n')
     records=[]
     def run(args):
-      p=subprocess.run([str(v) for v in args],cwd=repo,capture_output=True,text=True)
+      p=subprocess.run([str(v) for v in args],cwd=repo,capture_output=True,text=True, encoding='utf-8')
       records.append({'command':[str(v) for v in args],'exitCode':p.returncode,'stdout':p.stdout,'stderr':p.stderr})
       (root/'seed-commands.json').write_text(json.dumps(records,indent=2)+'\n')
       if p.returncode:raise SystemExit(p.stderr)

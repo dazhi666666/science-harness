@@ -31,7 +31,7 @@ def main():
     checks = []
 
     def run(command, expected=0):
-        result = subprocess.run(command, cwd=repo, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(command, cwd=repo, capture_output=True, text=True, encoding='utf-8', timeout=60)
         record = {'command': command, 'cwd': str(repo), 'exitCode': result.returncode, 'stdout': result.stdout, 'stderr': result.stderr}
         commands.append(record)
         (root / 'commands.json').write_text(json.dumps(commands, indent=2) + '\n')

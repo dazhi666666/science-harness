@@ -12,7 +12,8 @@ class ScienceMock extends LlmAdapter {
     return { provider, id: model, name: model }
   }
   async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    const lastResult = options.messages.at(-1)?.content.filter(block => block.type === 'tool-result').flatMap(block => block.content).filter(block => block.type === 'text').map(block => block.text).join('')
+    const last = options.messages.at(-1)
+    const lastResult = last?.role === 'tool' ? last.content.filter(block => block.type === 'text').map(block => block.text).join('') : undefined
     if (lastResult) {
       yield* textResponse(lastResult)
       return

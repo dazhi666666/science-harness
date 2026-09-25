@@ -23,7 +23,7 @@ launch={'command':command,'cwd':str(repo),'startedAt':datetime.datetime.now(date
 (out/'launch.json').write_text(json.dumps(launch,indent=2)+'\n')
 start=time.monotonic()
 with (out/'cli.log').open('w') as log:
- process=subprocess.Popen(command,cwd=repo,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+ process=subprocess.Popen(command,cwd=repo,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True, encoding='utf-8')
  for line in process.stdout:
   safe=line.replace(key,'[REDACTED]');log.write(safe);log.flush()
  code=process.wait()

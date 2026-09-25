@@ -1,7 +1,7 @@
 /** Real process failures and independent device journals, using the installed package rather than source adapters. */
 import { it, expect, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, readFileSync, cpSync, unlinkSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { join, dirname, basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
@@ -68,7 +68,8 @@ afterEach(async () => {
   for (const e of engines.splice(0)) await e.close()
 })
 
-it('SIGKILL after external submission loses the host reply, then fresh authorization finds one actual job', async () => {
+// Windows termination reports no POSIX signal name, so the SIGKILL assertion is POSIX-only.
+it.skipIf(process.platform === 'win32')('SIGKILL after external submission loses the host reply, then fresh authorization finds one actual job', async () => {
   const w = world()
   const code = `import {ExecutionEngine} from ${JSON.stringify(new URL('../platform/index.ts', import.meta.url).href)};import {createProvider} from ${JSON.stringify(pathToFileURL(installed).href)};
  const real=createProvider(${JSON.stringify(w.config)});const wrapper={...real,async submit(op){await real.submit(op);process.kill(process.pid,'SIGKILL')}};
@@ -168,7 +169,7 @@ it('supervisor death becomes unknown, retains occupancy and budget, and never la
 
 it('missing external executable keeps a bounded startup receipt then unknown, without retrying its durable ticket', async () => {
   const w = world()
-  const copied = join(dirname(dirname(installed!)), 'missing-executable-' + w.root.split('/').at(-1))
+  const copied = join(dirname(dirname(installed!)), 'missing-executable-' + basename(w.root))
   cpSync(dirname(installed!), copied, { recursive: true })
   unlinkSync(join(copied, 'supervisor.mjs'))
   const { createProvider: brokenFactory } = await import(pathToFileURL(join(copied, 'index.mjs')).href)

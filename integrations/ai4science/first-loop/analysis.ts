@@ -1,7 +1,7 @@
 /** Bounded, reproducible numerical analysis and evidence-linked model report publication. */
 import { randomUUID } from 'node:crypto'
 import { link, mkdir, readFile, realpath, unlink, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 
 /** A published observation; simulator parameters never enter analysis. */
 export interface Reading {
@@ -100,7 +100,7 @@ async function evidencePath(root: string, path: string) {
   if (!path || isAbsolute(path)) throw new Error('Evidence paths must be project-relative')
   const actualRoot = await realpath(root), actual = await realpath(resolve(root, path))
   const within = relative(actualRoot, actual)
-  if (within === '..' || within.startsWith('../') || isAbsolute(within)) throw new Error('Evidence path escapes project')
+  if (within === '..' || within.startsWith(`..${sep}`) || isAbsolute(within)) throw new Error('Evidence path escapes project')
   await readFile(actual)
 }
 
@@ -150,7 +150,7 @@ export async function saveReport(input: {
     const target = match[1] ?? match[2]!
     if (/^[A-Za-z][A-Za-z\d+.-]*:/.test(target) || target.startsWith('//') || target.startsWith('#')) continue
     const decoded = decodeURIComponent(target.split('#')[0]!.split('?')[0]!)
-    const path = relative(resolve(input.root), resolve(input.root, 'reports', decoded))
+    const path = relative(resolve(input.root), resolve(input.root, 'reports', decoded)).split(sep).join('/')
     await evidencePath(input.root, path)
     linkedPaths.add(path)
   }

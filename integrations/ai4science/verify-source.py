@@ -11,7 +11,7 @@ parser.add_argument("--revision", default=json.loads((pathlib.Path(__file__).res
 args = parser.parse_args()
 root = pathlib.Path(__file__).resolve().parents[2]
 commit = subprocess.check_output(
-    ["git", "-C", args.git_repo, "rev-parse", args.revision], text=True
+    ["git", "-C", args.git_repo, "rev-parse", args.revision], text=True, encoding='utf-8'
 ).strip()
 tree = subprocess.check_output(["git", "-C", args.git_repo, "ls-tree", "-rz", commit])
 checked = 0

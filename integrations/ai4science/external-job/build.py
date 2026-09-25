@@ -31,7 +31,7 @@ def main():
     packages = []
     for directory in [sdk, here / 'provider']:
         completed = subprocess.run(['npm', 'pack', '--ignore-scripts', '--json', '--pack-destination', str(output)],
-                                   cwd=directory, capture_output=True, text=True, check=True)
+                                   cwd=directory, capture_output=True, text=True, encoding='utf-8', check=True)
         packed = json.loads(completed.stdout)[0]
         path = output / packed['filename']
         packages.append({'name': packed['name'], 'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'harnessBaseline': json.loads((repo / 'UPSTREAM.json').read_text())['upstreamCommit']})

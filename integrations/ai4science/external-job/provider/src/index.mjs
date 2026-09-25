@@ -139,7 +139,7 @@ export function createProvider(input) {
             detail: 'Durable external submission; worker startup/completion must be observed separately',
           }
         }
-        return observation(config, row)
+        return observation(config, row, db)
       } finally {
         db.close()
       }
@@ -151,7 +151,7 @@ export function createProvider(input) {
         assertDomain(db, op)
         const row = db.prepare('SELECT * FROM jobs WHERE operation_id=?').get(op.operationId)
         if (row) assertIdentity(row, op)
-        return observation(config, row)
+        return observation(config, row, db)
       } finally {
         db.close()
       }
@@ -168,7 +168,7 @@ export function createProvider(input) {
           if (terminal(row.state))
             return {
               disposition: 'rejected',
-              observation: observation(config, row),
+              observation: observation(config, row, db),
               detail: 'Already terminal; history preserved',
             }
           db.prepare('UPDATE jobs SET cancel_requested=1 WHERE job_id=?').run(row.job_id)

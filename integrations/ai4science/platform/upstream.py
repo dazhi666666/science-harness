@@ -15,7 +15,7 @@ def main():
     metadata = json.loads((repo / 'UPSTREAM.json').read_text())
     env = dict(os.environ, GIT_TERMINAL_PROMPT='0')
     def git(*arguments, cwd=repo, check=True):
-        return subprocess.run(['git', *arguments], cwd=cwd, env=env, capture_output=True, text=True, check=check)
+        return subprocess.run(['git', *arguments], cwd=cwd, env=env, capture_output=True, text=True, encoding='utf-8', check=check)
     expected = metadata['upstreamRepository'].removesuffix('.git')
     current = git('remote', 'get-url', 'upstream', check=False)
     if current.returncode:

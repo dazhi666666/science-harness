@@ -144,9 +144,9 @@ python3 integrations/ai4science/platform/manage.py --home .ai4science/local-job-
 
 旧 first-loop 验证器仍认可已验收的原始基线/补丁组合，并会优先选择每个会话目录的最高 JSONL 版本。新运行的版本与补丁信息来自当前 UPSTREAM.json。升级后没有重新开展真实模型科研过程；当前证据包括确定性 Agent 集成、V2 子会话迁移、已有执行记录读取、独立计算插件和上游相关回归。
 
-2026-09-18 接入的上游为 0.1.6-alpha.2（ddefc45fbc7f8e46dd73185e68295696d1297887）。升级后使用原 setup/install/manage 命令；外部部署 JSON 中的 baseline 必须显式更新，旧 pin 会被拒绝。保留执行库、设备目录和 Provider 配置；Session V3 与 execution schema 2 均不变。旧记录可查且重复请求不重放，不自动恢复任何旧 Agent 或实验 controller 授权。
+2026-09-24 接入的上游为 0.1.7-rc.1（46a7f68b0922371ce7144b668b90e377d8e799f4）。升级后使用原 setup/install/manage 命令；外部部署 JSON 中的 baseline 必须显式更新，旧 pin 会被拒绝。保留执行库、设备目录和 Provider 配置；上游 Session 格式升至 V4（V2、V3 迁移链保留），execution schema 2 不变。旧记录可查且重复请求不重放，不自动恢复任何旧 Agent 或实验 controller 授权。
 
-宿主 maxActiveSubagents 默认八个活动子 Agent，计入连续父子关系下的后代；组织角色上限与此独立。大组织需配置两者，容量不足时冷恢复消息会被拒绝，不能解释为已接受或已处理。插件配置更新后用宿主 Fiber.await 确认重载完成。相关回归与实际命令见 [本轮记录](validation/upstream-0.1.6.json)。
+宿主 maxActiveSubagents 默认八个活动子 Agent，计入连续父子关系下的后代；组织角色上限与此独立。大组织需配置两者，容量不足时冷恢复消息会被拒绝，不能解释为已接受或已处理。插件配置更新后用宿主 Fiber.await 确认重载完成。相关回归与实际命令见 [本轮记录](validation/upstream-0.1.7.json)。
 
 ## 通用插件入门示例
 

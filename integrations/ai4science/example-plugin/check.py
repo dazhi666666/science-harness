@@ -16,7 +16,7 @@ def main():
     out=args.output.resolve();out.mkdir(parents=True,exist_ok=False)
     records=[]
     def run(command,cwd=repo,expected=0):
-        r=subprocess.run([str(v) for v in command],cwd=cwd,capture_output=True,text=True,timeout=90)
+        r=subprocess.run([str(v) for v in command],cwd=cwd,capture_output=True,text=True, encoding='utf-8',timeout=90)
         records.append({'command':[str(v) for v in command],'cwd':str(cwd),'exitCode':r.returncode,'stdout':r.stdout,'stderr':r.stderr})
         (out/'commands.json').write_text(json.dumps(records,indent=2)+'\n')
         assert r.returncode==expected,records[-1]
