@@ -1,0 +1,60 @@
+{
+  "status": "passed-local-functional-checks",
+  "date": "2026-10-14",
+  "previousCommunityCommit": "b66be22714a7f8d8e2f2c6c2d820373df6cbc3c1",
+  "previousUpstreamCommit": "46a7f68b0922371ce7144b668b90e377d8e799f4",
+  "upstreamCommit": "d743267388641bc76f17c45ce8b4c231aed1d32c",
+  "upstreamVersion": "0.2.1-alpha.2",
+  "upstreamBranch": "master",
+  "upstreamNewCommits": 1729,
+  "upstreamTagsCrossed": ["dsh-v0.1.7-rc.2", "dsh-v0.2.0-rc.1", "dsh-v0.2.0-rc.2", "dsh-v0.2.1-alpha.1"],
+  "hostModified": true,
+  "hostPatchSHA256": "e5b5edc03603fec84a23a904680f75e853bfb05f15c1e66f877592f677109527",
+  "hostPatchReverseApplyCheck": "passed",
+  "sessionFormatVersion": 4,
+  "executionSchemaVersion": 2,
+  "modelRequests": 0,
+  "githubCI": "pending integration push",
+  "hostExtensionPort": {
+    "movedFrom": ["packages/subagent/subagent/src/continuation.ts", "packages/subagent/subagent/src/continuation-activation.ts"],
+    "movedTo": ["packages/subagent/subagent/src/manager.ts", "packages/subagent/subagent/src/index.ts"],
+    "reason": "upstream refactor 390fbe8852 merged subagent orchestration, activation ownership and the inbox into manager.ts, renaming SubagentContinuationManager to SubagentManager and ContinuableActivationRegistry to ActivationPool"
+  },
+  "forkApiMigrations": {
+    "startContinuable": "startActivation with delivery 'parent'",
+    "start": "startActivation with delivery 'caller'; run.id became run.childId",
+    "drainContinuableChildren": "drainChildren",
+    "drainContinuableDescendants": "drainDescendants",
+    "sendMessageToolReceipt": "send_message now returns {sent: true}; the message id stays on the Agent Teams service result",
+    "teamMessageSource": "team-message replaced by the generic agent-message relay source carrying senderSessionId",
+    "turnCancellation": "subagents.start no longer cancels a running turn; interrupt(targetSessionId, authority) does",
+    "resumedDependencies": "hand-built Loader fixtures now load fs-local and working-directory because SubagentRuntime declares static inject = ['workingDirectory']"
+  },
+  "tests": {
+    "platform": 55,
+    "platformSkipped": 1,
+    "crossBranch": 15,
+    "minimal": 5,
+    "teams": 5,
+    "firstLoop": 20,
+    "upstreamContinuationServiceControlAndToolTeam": 260,
+    "totalVitestTests": 360,
+    "cli": {
+      "commands": 29,
+      "assertions": 25
+    }
+  },
+  "repositoryGates": {
+    "typecheck": "passed",
+    "lint": "passed (one pre-existing upstream warning in packages/experimental/client-ui-cot-translation)"
+  },
+  "notRunLocally": {
+    "externalJob": "build.py shells out to bare `npm`, which Windows Python cannot resolve to npm.cmd; unchanged by this intake and owned by CI",
+    "experimentCheck": "shares external-job/build.py and fails for the same environment reason",
+    "examplePlugin": "shares external-job/build.py and fails for the same environment reason",
+    "docSync": "the bilingual pairing gate is upstream's and is not part of this project's CI; see openIssues"
+  },
+  "openIssues": [
+    "README.zh.md is a five-line pointer stub while README.md has 17 headings, so upstream's new per-heading-section pairing record cannot represent the pair. The obsolete whole-file-hash README.i18n.yaml was deleted rather than left describing a superseded README; the project must either translate README.md or exclude the pair from scripts/translation-pairing.manifest.json."
+  ]
+}

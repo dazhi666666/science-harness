@@ -18,6 +18,8 @@ import Projections from '@deepseek-ai/dsh-session-projection'
 import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQuery from '@deepseek-ai/dsh-session-query-sqlite'
 import Subagents from '@deepseek-ai/dsh-subagent'
+import WorkingDirectory from '@deepseek-ai/dsh-working-directory'
+import LocalFs from '@deepseek-ai/dsh-fs-local'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import * as Control from '@deepseek-ai/dsh-tool-subagent-control'
 import Storage from '@deepseek-ai/dsh-storage'
@@ -46,7 +48,7 @@ async function boot(script: ConstructorParameters<typeof MockAdapter>[0], existi
   const modules = new Map<string, unknown>([
     ['llm', Llm], ['sessions', Sessions], ['prompt', SystemPrompt], ['tools', Tools],
     ['agents', Agents], ['projections', Projections], ['jsonl', Jsonl], ['session-query', SessionQuery], ['loop', AgentLoop],
-    ['subagents', Subagents], ['spawn', Spawn], ['control', Control], ['storage', Storage],
+    ['subagents', Subagents], ['fs-local', LocalFs], ['working-directory', WorkingDirectory], ['spawn', Spawn], ['control', Control], ['storage', Storage],
     ['storage-json', StorageJson], ['storage-domain', StorageDomain], ['science', Science],
     ['scripted-llm', { name: 'scripted-llm', inject: ['llm'], apply(ctx: Context) {
       ctx.llm.registerAdapter(['probe'], adapter)
@@ -56,7 +58,7 @@ async function boot(script: ConstructorParameters<typeof MockAdapter>[0], existi
   const configs: Record<string, unknown> = {
     jsonl: { root: join(root, 'sessions'), compression: 'none' },
     'session-query': { path: ':memory:', openAt: 'never' },
-    loop: { agents: [] }, spawn: { providerName: 'spawn' },
+    loop: { agents: [] }, spawn: { providerName: 'spawn' }, 'fs-local': { cwd: root }, 'working-directory': { defaultDirectory: root },
     'storage-json': { root: join(root, 'records') },
     'storage-domain': { backend: 'json' },
     science: { project: 'probe-project', provider: 'spawn', maxDepth: 2 },
@@ -95,8 +97,8 @@ async function settled(ctx: Context, id: SessionId) {
   await vi.waitFor(() => expect(ctx.agents.get(id)).toBeUndefined(), { timeout: 10000 })
 }
 function start(ctx: Context, owner: Agent, id: string) {
-  return ctx.subagents.startContinuable({
-    provider: 'spawn', label: 'probe child', childId: SessionId(id), signal: signal(),
+  return ctx.subagents.startActivation({
+    provider: 'spawn', label: 'probe child', childId: SessionId(id), delivery: 'parent', signal: signal(),
     request: { parent: owner, prompt: text('work'), agentOptions: { provider: 'probe', model: 'probe' }, maxDepth: 2 },
   })
 }
@@ -202,18 +204,18 @@ it('delivers child-to-parent results and parent-to-child follow-ups, rejects pee
   await resumedParent.dispose()
 })
 
-it('enforces depth, reports cancellation as a non-success result, and disposes a one-shot run', async () => {
+it('enforces depth, reports cancellation as a non-success result, and disposes a caller-delivery run', async () => {
   const { ctx, adapter } = await boot(['hang'])
   const main = await parent(ctx, 'cancellation-parent')
-  await expect(ctx.subagents.start('spawn', { parent: main.agent, prompt: text('work'), signal: signal(), maxDepth: 0 })).rejects.toThrow()
+  await expect(ctx.subagents.startActivation({ provider: 'spawn', label: 'one-shot', delivery: 'caller', request: { parent: main.agent, prompt: text('work'), signal: signal(), maxDepth: 0 } })).rejects.toThrow()
   const controller = new AbortController()
-  const run = await ctx.subagents.start('spawn', { parent: main.agent, prompt: text('work'), signal: controller.signal, agentOptions: { provider: 'probe', model: 'probe' } })
+  const run = await ctx.subagents.startActivation({ provider: 'spawn', label: 'one-shot', delivery: 'caller', signal: controller.signal, request: { parent: main.agent, prompt: text('work'), agentOptions: { provider: 'probe', model: 'probe' } } })
   await vi.waitFor(() => expect(adapter.requests).toHaveLength(1))
   controller.abort()
+  ctx.subagents.interrupt(run.childId, { kind: 'user', parentSessionId: main.agent.id })
   expect(await run.result).toMatchObject({ stopReason: 'aborted' })
   await run.dispose()
-  expect(ctx.agents.get(run.id)).toBeUndefined()
-  await expect(ctx.subagents.sendMessage(main.agent, run.id, text('cannot-resume-one-shot'), { signal: signal() })).rejects.toMatchObject({ code: 'NOT_RESUMABLE' })
+  await settled(ctx, run.childId)
   await main.dispose()
 })
 

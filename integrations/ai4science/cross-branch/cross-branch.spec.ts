@@ -216,7 +216,7 @@ for (const invalidParent of ['sender', 'recipient'] as const) {
     await authorize(p, w.ra, w.rb)
     const saved = await result(p, w.a)
     const oldParent = invalidParent === 'sender' ? w.ra : w.rb
-    await p.ctx.subagents.drainContinuableChildren(w.root.agent, [oldParent.id])
+    await p.ctx.subagents.drainChildren(w.root.agent, [oldParent.id])
     expect(p.ctx.agents.get(oldParent.id)).toBeUndefined()
     await expect(p.ctx.subagents.scienceResults!.send(w.a, w.b.id, { kind: 'reference', resultId: saved.id }, signal())).rejects.toMatchObject({ code: 'SCIENCE_NO_GRANT' })
     p.model.queue(oldParent.id, new Gate().step())
@@ -252,7 +252,7 @@ it('rejects a parent that has begun disposal before its old object leaves the re
   const p = await setup('parent-disposal-cutoff'); const w = await workers(p)
   await authorize(p, w.ra, w.rb)
   const saved = await result(p, w.a)
-  const closing = p.ctx.subagents.drainContinuableChildren(w.root.agent, [w.rb.id])
+  const closing = p.ctx.subagents.drainChildren(w.root.agent, [w.rb.id])
   expect(p.ctx.agents.get(w.rb.id)).toBe(w.rb)
   await expect(p.ctx.subagents.scienceResults!.send(w.a, w.b.id, { kind: 'reference', resultId: saved.id }, signal())).rejects.toMatchObject({ code: 'SCIENCE_STALE_AGENT' })
   await closing

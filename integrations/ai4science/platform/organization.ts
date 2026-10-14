@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import type { MessageId } from '@deepseek-ai/dsh-llm'
 import type { ScienceResultMessage, ScienceResultReader } from '@deepseek-ai/dsh-subagent'
 
 const roleSchema = z
@@ -103,7 +104,7 @@ export class Organization {
           [...this.roots]
             .filter((root) => ctx.agents.get(root.id) === root)
             .map((root) =>
-              subagents.drainContinuableChildren(
+              subagents.drainChildren(
                 root,
                 [...this.participants.values()].filter((p) => p.parentId === root.id).map((p) => p.id),
               ),
@@ -168,7 +169,7 @@ export class Organization {
     return p
   }
   /** Reserve configured role limits synchronously, then let Harness create a true continuable child. */
-  async create(parent: Agent, role: string, task: string, signal: AbortSignal) {
+  async create(parent: Agent, role: string, task: string, signal: AbortSignal): Promise<{ participant: Participant, messageId: MessageId }> {
     const owner = this.assertActor(parent, 'org_create')
     const spec = this.config.roles[role]
     const limit = this.config.roles[owner.role]!.creates[role]
@@ -193,10 +194,11 @@ export class Organization {
     this.parentInstances.set(p.id, parent)
     this.record('participant-reserved', p)
     try {
-      const accepted = await this.ctx.subagents.startContinuable({
+      const accepted = await this.ctx.subagents.startActivation({
         provider: 'spawn',
         childId: p.id,
         label: role,
+        delivery: 'parent',
         signal,
         request: {
           parent,
@@ -326,7 +328,7 @@ export class Organization {
       if (live) this.ctx.subagents.scienceResults!.parentDisposed(live)
     }
     this.changed()
-    await this.ctx.subagents.drainContinuableChildren(
+    await this.ctx.subagents.drainChildren(
       root,
       [...this.participants.values()].filter((p) => p.parentId === root.id).map((p) => p.id),
     )

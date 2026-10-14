@@ -17,7 +17,7 @@ async function live(probe: Probe, id: SessionId): Promise<Agent> {
   return vi.waitFor(() => { const agent = probe.ctx.agents.get(id); expect(agent).toBeDefined(); return agent! })
 }
 const summary = z.object({ id: z.string(), callerSessionId: z.string(), project: z.string(), samples: z.array(z.number()), mean: z.number(), method: z.string() })
-const receipt = z.object({ messageId: z.string(), status: z.enum(['accepted', 'queued']) })
+const receipt = z.object({ sent: z.literal(true) })
 type Summary = z.infer<typeof summary>
 
 for (const targetState of ['running', 'idle', 'inactive'] as const) {
@@ -125,7 +125,7 @@ for (const targetState of ['running', 'idle', 'inactive'] as const) {
     expect(readFinished).toBe(false)
     probe.note('waitForChange-returned-before-completion')
     await vi.waitFor(() => expect(forwardReceipt).toBeDefined())
-    expect(forwardReceipt!.status).toBe('accepted')
+    expect(forwardReceipt!.sent).toBe(true)
     expect(readFinished).toBe(false)
     expect(replySeen).toBe(false)
     await absent(probe, a.id)
@@ -134,9 +134,9 @@ for (const targetState of ['running', 'idle', 'inactive'] as const) {
       const pendingB = ctx.agents.get(b.id)!
       await ctx.sessions.flush(pendingB.session)
       const beforeClaim = (await stored(probe, b.id)).events
-      expect(beforeClaim.some(event => event.type === 'agent/inbox/spliced' && event.data.inserted.some(message => message.source.kind === 'team-message' && message.source.messageId === forwardReceipt!.messageId))).toBe(true)
-      expect(beforeClaim.some(event => event.type === 'user/message' && event.data.source.kind === 'team-message')).toBe(false)
-      probe.note('accepted-but-not-claimed', { messageId: forwardReceipt!.messageId })
+      expect(beforeClaim.some(event => event.type === 'agent/inbox/spliced' && event.data.inserted.some(message => message.source.kind === 'agent-message' && message.source.senderSessionId === a.id))).toBe(true)
+      expect(beforeClaim.some(event => event.type === 'user/message' && event.data.source.kind === 'agent-message')).toBe(false)
+      probe.note('accepted-but-not-claimed', { senderId: a.id })
       initialB.release()
     }
     await vi.waitFor(() => expect(started).toBe(true))
@@ -155,18 +155,16 @@ for (const targetState of ['running', 'idle', 'inactive'] as const) {
     const aLog = await stored(probe, a.id)
     const bLog = await stored(probe, b.id)
     const leadLog = await stored(probe, owner.agent.id)
-    const bReceived = bLog.events.filter(event => event.type === 'user/message' && event.data.source.kind === 'team-message' && event.data.source.messageId === forwardReceipt!.messageId)
+    const bReceived = bLog.events.filter(event => event.type === 'user/message' && event.data.source.kind === 'agent-message' && event.data.source.senderSessionId === a.id)
     expect(bReceived).toHaveLength(1)
-    expect(bReceived[0]!.data).toMatchObject({ source: { kind: 'team-message', teamId: owner.agent.id, senderId: a.id, senderName: 'a', messageId: forwardReceipt!.messageId } })
-    const aReceived = aLog.events.filter(event => event.type === 'user/message' && event.data.source.kind === 'team-message' && event.data.source.messageId === replyReceipt!.messageId)
+    expect(bReceived[0]!.data).toMatchObject({ role: 'user', source: { kind: 'agent-message', form: 'relay', senderSessionId: a.id } })
+    const aReceived = aLog.events.filter(event => event.type === 'user/message' && event.data.source.kind === 'agent-message' && event.data.source.senderSessionId === b.id)
     expect(aReceived).toHaveLength(1)
-    expect(aReceived[0]!.data).toMatchObject({ source: { kind: 'team-message', teamId: owner.agent.id, senderId: b.id, senderName: 'b' } })
+    expect(aReceived[0]!.data).toMatchObject({ role: 'user', source: { kind: 'agent-message', form: 'relay', senderSessionId: b.id } })
     const final = bLog.events.find(event => event.type === 'assistant/message' && event.data.message.content.some(block => block.type === 'text' && block.text === `B completed read and reply for ${saved!.id}`))
     expect(final).toBeDefined()
     const completion = bLog.events.find(event => event.type === 'turn/end' && event.seq > final!.seq)
     expect(completion).toMatchObject({ data: { reason: { kind: 'completed' } } })
-    expect(leadLog.events.filter(event => event.type === 'team/message/queued')).toHaveLength(2)
-    expect(leadLog.events.filter(event => event.type === 'team/message/delivered')).toHaveLength(2)
     expect(model.remaining('a')).toBe(0)
     expect(model.remaining('b')).toBe(0)
     probe.report.exchange = { saved, forwardReceipt, replyReceipt, bProcessingStartSeq: bReceived[0]!.seq, bProcessingCompleteSeq: completion!.seq, aReplySeq: aReceived[0]!.seq }
@@ -207,7 +205,7 @@ it('creation is Lead-only; exact live callers and per-Team target namespaces are
   const ownReceipt = await ctx.agentTeams.sendMessage(caller, { target: 'b', content: ref, signal: signal() })
   await absent(probe, b.id)
   const ownLog = await stored(probe, b.id)
-  expect(ownLog.events.some(event => event.type === 'user/message' && event.data.source.kind === 'team-message' && event.data.source.messageId === ownReceipt.messageId)).toBe(true)
+  expect(ownLog.events.some(event => event.type === 'user/message' && event.data.source.kind === 'agent-message' && event.data.source.senderSessionId === caller.id)).toBe(true)
   expect((await stored(probe, remoteB.id)).events).toHaveLength(remoteBefore)
   expect(ctx.agents.get(remoteB.id)).toBeUndefined()
   gateA.release()

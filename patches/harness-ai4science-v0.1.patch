@@ -1,179 +1,17 @@
-diff --git a/package.json b/package.json
-index 16cfb7af43..865855c73d 100644
---- a/package.json
-+++ b/package.json
-@@ -4,7 +4,7 @@
-   "license": "MIT",
-   "private": true,
-   "type": "module",
--  "packageManager": "pnpm@11.7.0",
-+  "packageManager": "pnpm@11.19.0",
-   "engines": {
-     "node": "^22.19.0 || >=24.0.0"
-   },
-diff --git a/packages/subagent/subagent/src/continuation-activation.ts b/packages/subagent/subagent/src/continuation-activation.ts
-index d995e9f2b4..15d0979567 100644
---- a/packages/subagent/subagent/src/continuation-activation.ts
-+++ b/packages/subagent/subagent/src/continuation-activation.ts
-@@ -509,6 +509,7 @@ export class ContinuableActivationRegistry {
-    * @param delivery - the Agent inbox destination.
-    * @param parent - exact live direct parent authorizing admission.
-    * @param signal - caller cancellation before inbox acceptance.
-+   * @param beforeAccept - Optional authority reservation immediately before enqueue; returns a rollback for failed delivery.
-    * @returns the accepted durable message id.
-    */
-   submitAdmitted(
-@@ -517,6 +518,7 @@ export class ContinuableActivationRegistry {
-     delivery: SubagentDelivery,
-     parent: Agent,
-     signal: AbortSignal,
-+    beforeAccept?: (id: MessageId) => () => void,
-   ): MessageId {
-     signal.throwIfAborted()
-     this.assertAdmitting(parent)
-@@ -526,8 +528,13 @@ export class ContinuableActivationRegistry {
-       activation.handle.agent.session.header.parentSession,
-     )
-     this.acquireOwnership(parent, activation.childId)
-+    let rollback: (() => void) | undefined
-     try {
-+      rollback = beforeAccept?.(message.id)
-       activation.inbox.deliver(message, delivery)
-+    } catch (error) {
-+      rollback?.()
-+      throw error
-     } finally {
-       this.wake(activation)
-     }
-diff --git a/packages/subagent/subagent/src/continuation.ts b/packages/subagent/subagent/src/continuation.ts
-index 87fae7096a..36b31a1df4 100644
---- a/packages/subagent/subagent/src/continuation.ts
-+++ b/packages/subagent/subagent/src/continuation.ts
-@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto'
- import type { Context } from '@deepseek-ai/cordis'
- import type { Agent } from '@deepseek-ai/dsh-agent'
- import { brandString } from '@deepseek-ai/dsh-brand'
--import { ReasoningEffortId, contentHasImage, createUserMessage } from '@deepseek-ai/dsh-llm'
-+import { ReasoningEffortId, contentHasImage, createUserMessage, freezeMessage } from '@deepseek-ai/dsh-llm'
- import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-llm'
- import { SessionLogOffset } from '@deepseek-ai/dsh-session'
- import type { SessionId } from '@deepseek-ai/dsh-session'
-@@ -41,6 +41,8 @@ import { assertSubagentMaxDepth } from './depth.ts'
- import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor.ts'
- import { establishCatalogChild } from './catalog.ts'
- import { SubagentError } from './error.ts'
-+import { ScienceResultExchange } from './science-results.ts'
-+import type { Config } from './index.ts'
- import { isAdjacentAgentSendMessageTool } from './internal.ts'
- import type { ActivationObserver } from './lifecycle.ts'
- import type {
-@@ -53,7 +55,10 @@ import type {
- } from './types.ts'
- 
- /** Inputs shared by model steering and human prompt delivery. */
--type ChildDeliveryOptions =
-+type ChildDeliveryOptions = {
-+  readonly beforeAccept?: (id: MessageId) => () => void
-+  readonly contentForId?: (id: MessageId) => ContentBlock[]
-+} & (
-   | {
-     readonly delivery: 'steer'
-     /**
-@@ -63,7 +68,7 @@ type ChildDeliveryOptions =
-     readonly source?: MessageSource
-     readonly signal: AbortSignal
-   }
--  | { readonly delivery: 'queue'; readonly source: MessageSource; readonly signal: AbortSignal }
-+  | { readonly delivery: 'queue'; readonly source: MessageSource; readonly signal: AbortSignal })
- 
- /** Package-private hooks supplied by the owning service. */
- interface ContinuationHost {
-@@ -80,18 +85,44 @@ interface ContinuationHost {
-  * this lifecycle.
-  */
- export class SubagentContinuationManager {
-+  readonly scienceResults: ScienceResultExchange | undefined
-   private readonly activations: ContinuableActivationRegistry
- 
-   constructor(
-     private readonly ctx: Context,
-     private readonly host: ContinuationHost,
-     maxActiveSubagents: () => number,
-+    config: Pick<Config, 'scienceResultProject' | 'scienceResultMaxPending' | 'scienceResultMaxPairs'> = {},
-   ) {
-     this.activations = new ContinuableActivationRegistry(
-       ctx,
-       (provider, childId, parent) => host.observeActivation(provider, childId, parent),
-       maxActiveSubagents,
-     )
-+    this.scienceResults = config.scienceResultProject === undefined ? undefined : new ScienceResultExchange(
-+      config.scienceResultProject, config.scienceResultMaxPending ?? 32, {
-+        assertLive: (agent) => {
-+          this.activations.assertAdmitting(agent)
-+          const activation = this.activations.get(agent.id)
-+          if (ctx.agents.get(agent.id) !== agent
-+            || (activation?.handle.agent === agent && activation.inbox.closing !== undefined)) {
-+            throw new SubagentError('science authority requires the exact live, non-disposing Agent', 'SCIENCE_STALE_AGENT')
-+          }
-+        },
-+        endpoint: async (parent, childId, signal) => {
-+          using observation = await this.requireSessionQuery().observeSession(childId, { signal })
-+          this.activations.assertAdmitting(parent)
-+          this.activations.authorizeLineage(parent, childId, observation.header.parentSession)
-+          if (foldSubagentDescriptor(observation.events.slice(observation.inheritedEventCount))?.mode !== 'continuable') {
-+            throw new SubagentError('science endpoint must be an existing continuable child', 'NOT_RESUMABLE')
-+          }
-+        },
-+        deliver: (parent, childId, content, source, signal, beforeAccept) =>
-+          this.deliverToChild(parent, childId, [], { source, signal, beforeAccept, contentForId: content, delivery: 'steer' }),
-+      }, config.scienceResultMaxPairs ?? 1,
-+    )
-+    ctx.on('agent/disposed', ({ agent }) => this.scienceResults?.parentDisposed(agent))
-+    ctx.effect(() => () => this.scienceResults?.close(), 'subagents.scienceResults')
-   }
- 
-   /**
-@@ -379,6 +410,7 @@ export class SubagentContinuationManager {
- 
-   /** Close manager-wide admission and release every live Activation. */
-   async drain(): Promise<void> {
-+    this.scienceResults?.close()
-     await this.activations.drain()
-   }
- 
-@@ -493,15 +525,17 @@ export class SubagentContinuationManager {
-     options: ChildDeliveryOptions,
-     parent: Agent,
-   ): MessageId {
--    const message = options.source === undefined
-+    const initial = options.source === undefined
-       ? createAgentMessage(parent, content)
-       : createUserMessage({ content, source: options.source })
-+    const message = options.contentForId === undefined ? initial : freezeMessage({ ...initial, content: options.contentForId(initial.id) })
-     return this.activations.submitAdmitted(
-       activation,
-       message,
-       options.delivery,
-       parent,
-       options.signal,
-+      options.beforeAccept,
-     )
-   }
- 
 diff --git a/packages/subagent/subagent/src/index.ts b/packages/subagent/subagent/src/index.ts
-index 2a79339563..f836782619 100644
+index edce6b7ae5..9531a54682 100644
 --- a/packages/subagent/subagent/src/index.ts
 +++ b/packages/subagent/subagent/src/index.ts
 @@ -32,6 +32,8 @@ import type { Volatile } from '@deepseek-ai/cordis'
- 
  import { Context } from '@deepseek-ai/cordis'
  import z from '@deepseek-ai/schemastery'
+ import type {} from '@deepseek-ai/dsh-working-directory'
 +import type { ScienceResultExchange } from './science-results.ts'
 +export type { SciencePeerConsent, ScienceResultMessage, ScienceResultReader, ScienceResultSource } from './science-results.ts'
  import type {} from '@deepseek-ai/dsh-attachment'
  import { scopeTarget } from '@deepseek-ai/dsh-scope'
  import type { Scoped } from '@deepseek-ai/dsh-scope'
-@@ -190,6 +192,12 @@ interface BrowserPromptSource {
+@@ -182,6 +184,12 @@ interface BrowserPromptSource {
  
  /** Host configuration for continuable subagent capacity. */
  export interface Config {
@@ -186,8 +24,8 @@ index 2a79339563..f836782619 100644
    /** Maximum live children sharing uninterrupted continuable parent links; defaults to 8. */
    maxActiveSubagents: Volatile<number>
    /** Default delegation depth for tools without an explicit limit; defaults to 1. */
-@@ -199,6 +207,9 @@ export interface Config {
- /** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
+@@ -191,6 +199,9 @@ export interface Config {
+ /** Named provider registry with managed activations, durable discovery, and local child messaging. */
  export class SubagentRuntime extends TypertRemoteService {
    static Config = z.object({
 +    scienceResultProject: z.string().min(1),
@@ -196,33 +34,174 @@ index 2a79339563..f836782619 100644
      maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1).volatile(),
      maxActiveSubagents: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(8).volatile(),
    })
-@@ -218,7 +229,7 @@ export class SubagentRuntime extends TypertRemoteService {
-       const manager = new SubagentContinuationManager(childCtx, {
+@@ -215,7 +226,7 @@ export class SubagentRuntime extends TypertRemoteService {
+         },
          prepareContinuable: (name, request) => this.prepareContinuable(name, request),
          observeActivation: (provider, childId, parent) => this.observeActivation(provider, childId, parent),
 -      }, () => this.config.maxActiveSubagents.get())
 +      }, () => this.config.maxActiveSubagents.get(), config)
-       this.continuations = manager
+       this.manager = manager
        childCtx.effect(() => () => {
          /* v8 ignore else -- one injected binding owns the slot until its fiber disposes. */
-@@ -262,6 +273,11 @@ export class SubagentRuntime extends TypertRemoteService {
-     return this.requireContinuations().startContinuable(spec)
+@@ -291,6 +302,11 @@ export class SubagentRuntime extends TypertRemoteService {
+     return this.manager?.waitForChildren(parent) ?? false
    }
  
 +  /** Optional single-project result exchange; absent unless scienceResultProject is configured. */
 +  get scienceResults(): ScienceResultExchange | undefined {
-+    return this.requireContinuations().scienceResults
++    return this.requireManager().scienceResults
 +  }
 +
    /**
     * Steer one model-authored message to the sender's direct parent or direct
     * continuable child. A running target admits it at the nearest step boundary;
+diff --git a/packages/subagent/subagent/src/manager.ts b/packages/subagent/subagent/src/manager.ts
+index 456c8ce271..1247c4713f 100644
+--- a/packages/subagent/subagent/src/manager.ts
++++ b/packages/subagent/subagent/src/manager.ts
+@@ -12,7 +12,7 @@ import type {} from '@deepseek-ai/dsh-working-directory'
+ import type { Context } from '@deepseek-ai/cordis'
+ import type { Agent, AgentOptions, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
+ import { brandString } from '@deepseek-ai/dsh-brand'
+-import { ReasoningEffortId, contentHasImage, createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
++import { ReasoningEffortId, contentHasImage, createUserMessage, errorChain, freezeMessage } from '@deepseek-ai/dsh-llm'
+ import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-llm'
+ import { SessionLogOffset } from '@deepseek-ai/dsh-session'
+ import type { SessionId, SessionEvent, UserMessage } from '@deepseek-ai/dsh-session'
+@@ -30,6 +30,8 @@ import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor
+ import type { SubagentDescriptorData } from './descriptor.ts'
+ import { establishCatalogChild, establishExternalCatalogChild } from './catalog.ts'
+ import { SubagentError } from './error.ts'
++import { ScienceResultExchange } from './science-results.ts'
++import type { Config } from './index.ts'
+ import { isAdjacentAgentSendMessageTool } from './internal.ts'
+ import type { ActivationObserver } from './lifecycle.ts'
+ import type {
+@@ -43,8 +45,16 @@ import type { SubagentDelivery } from './control-types.ts'
+ import { ActivationPool, ChildLock, activationAgent, captureLocalResult, observeLocalFailure, requireLocalActivation } from './activation.ts'
+ import type { Activation, ActivationResource, LocalActivation } from './activation.ts'
+ 
++/** Host reservations the science-result extension owns; ordinary delivery omits both. */
++interface ScienceDeliveryReservations {
++  /** Authority reservation taken immediately before enqueue; returns a rollback for failed delivery. */
++  readonly beforeAccept?: (id: MessageId) => () => void
++  /** Rebuilds content once the accepted message id exists, so a payload can carry its own id. */
++  readonly contentForId?: (id: MessageId) => ContentBlock[]
++}
++
+ /** Inputs shared by model steering and human prompt delivery. */
+-type ChildDeliveryOptions =
++type ChildDeliveryOptions = ScienceDeliveryReservations & (
+   | {
+     readonly delivery: 'steer'
+     /**
+@@ -54,7 +64,7 @@ type ChildDeliveryOptions =
+     readonly source?: MessageSource
+     readonly signal: AbortSignal
+   }
+-  | { readonly delivery: 'queue'; readonly source: MessageSource; readonly signal: AbortSignal }
++  | { readonly delivery: 'queue'; readonly source: MessageSource; readonly signal: AbortSignal })
+ 
+ /** Package-private hooks supplied by the owning service. */
+ interface SubagentHost {
+@@ -145,6 +155,8 @@ export class SubagentManager {
+    * poisoning a later same-id replacement.
+    */
+   private readonly closingScopes = new Map<Agent, Set<Agent>>()
++  /** Opt-in bounded science-result exchange; absent unless a project is configured. */
++  readonly scienceResults: ScienceResultExchange | undefined
+   private draining = false
+ 
+   /**
+@@ -152,11 +164,13 @@ export class SubagentManager {
+    * @param ctx - context providing Agents, Sessions, and teardown ownership.
+    * @param host - provider dispatch and lifecycle observation owned by the service.
+    * @param maxActiveSubagents - the current configured child capacity.
++   * @param config - optional science-result exchange opt-in; absent leaves the extension disabled.
+    */
+   constructor(
+     private readonly ctx: Context,
+     private readonly host: SubagentHost,
+     private readonly maxActiveSubagents: () => number,
++    config: Pick<Config, 'scienceResultProject' | 'scienceResultMaxPending' | 'scienceResultMaxPairs'> = {},
+   ) {
+     // Ordinary Cordis owner effects unwind in reverse registration order, which
+     // cannot express the dynamic child graph. Register the private scope's
+@@ -166,13 +180,37 @@ export class SubagentManager {
+     // child-first ordering.
+     const scope = ctx.plugin(function activationOwner() {})
+     this.ownerCtx = scope.ctx
++    this.scienceResults = config.scienceResultProject === undefined ? undefined : new ScienceResultExchange(
++      config.scienceResultProject, config.scienceResultMaxPending ?? 32, {
++        assertLive: (agent) => {
++          this.assertAdmitting(agent)
++          const activation = this.resident.get(agent.id)
++          if (ctx.agents.get(agent.id) !== agent
++            || (activation !== undefined && activationAgent(activation) === agent && activation.closing !== undefined)) {
++            throw new SubagentError('science authority requires the exact live, non-disposing Agent', 'SCIENCE_STALE_AGENT')
++          }
++        },
++        endpoint: async (parent, childId, signal) => {
++          using observation = await this.requireSessionQuery().observeSession(childId, { signal })
++          this.assertAdmitting(parent)
++          this.authorizeLineage(parent, childId, observation.header.parentSession)
++          if (foldSubagentDescriptor(observation.events.slice(observation.inheritedEventCount))?.mode !== 'continuable') {
++            throw new SubagentError('science endpoint must be an existing continuable child', 'NOT_RESUMABLE')
++          }
++        },
++        deliver: (parent, childId, content, source, signal, beforeAccept) =>
++          this.deliverToChild(parent, childId, [], { source, signal, beforeAccept, contentForId: content, delivery: 'steer' }),
++      }, config.scienceResultMaxPairs ?? 1,
++    )
+     ctx.on('agent/disposed', ({ agent }) => {
+       this.closingScopes.delete(agent)
++      this.scienceResults?.parentDisposed(agent)
+     })
+     ctx.effect(function* (this: SubagentManager) {
+       yield scope.dispose
+       yield () => this.drain()
+     }.bind(this), 'subagents.manager()')
++    ctx.effect(() => () => this.scienceResults?.close(), 'subagents.scienceResults')
+   }
+ 
+   /**
+@@ -234,6 +272,7 @@ export class SubagentManager {
+    */
+   async drain(): Promise<void> {
+     this.draining = true
++    this.scienceResults?.close()
+     for (const pending of this.materializations) pending.controller.abort()
+     await Promise.all([...this.materializations].map(materialization => materialization.settled))
+     const owned = new Set<SessionId>()
+@@ -1413,15 +1452,21 @@ export class SubagentManager {
+     options: ChildDeliveryOptions,
+     parent: Agent,
+   ): MessageId {
+-    const message = options.source === undefined
++    const initial = options.source === undefined
+       ? createAgentMessage(parent, content)
+       : createUserMessage({ content, source: options.source })
++    const message = options.contentForId === undefined ? initial : freezeMessage({ ...initial, content: options.contentForId(initial.id) })
+     options.signal.throwIfAborted()
+     this.assertAdmitting(parent)
+     this.authorizeLineage(parent, activation.childId, activation.parent.id)
+     this.acquireOwnership(parent, activation.childId)
++    let rollback: (() => void) | undefined
+     try {
++      rollback = options.beforeAccept?.(message.id)
+       this.deliver(activation, message, options.delivery)
++    } catch (error) {
++      rollback?.()
++      throw error
+     } finally {
+       this.wake(activation)
+     }
 diff --git a/packages/subagent/subagent/src/science-results.ts b/packages/subagent/subagent/src/science-results.ts
 new file mode 100644
-index 0000000000..182f1413b0
+index 0000000000..0a178d26dd
 --- /dev/null
 +++ b/packages/subagent/subagent/src/science-results.ts
-@@ -0,0 +1,194 @@
+@@ -0,0 +1,215 @@
 +/** Opt-in, single-project, bounded-pair result-reference authority inside the existing subagent runtime. */
 +import { z } from 'zod'
 +import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -288,13 +267,23 @@ index 0000000000..182f1413b0
 +  private readonly pairs = new Set<Pair>()
 +  private reader: ScienceResultReader | undefined
 +  private epoch = 0
-+  private closed = false
++  private shutdown = false
++  /**
++   * Read through a call so a `close()` that lands during an awaited check still
++   * narrows nothing in the caller; the admission checks below must observe it.
++   */
++  private isClosed(): boolean { return this.shutdown }
 +
-+  constructor(readonly project: string, private readonly maxPending: number, private readonly host: ScienceResultHost, readonly maxPairs = 1) {}
++  constructor(
++    readonly project: string,
++    private readonly maxPending: number,
++    private readonly host: ScienceResultHost,
++    readonly maxPairs = 1,
++  ) {}
 +
 +  /** Validate exact native residency and teardown admission without granting any communication rights. */
 +  assertLiveParticipant(agent: Agent): void {
-+    if (this.closed) reject('SCIENCE_DISABLED', 'science result exchange is closed')
++    if (this.isClosed()) reject('SCIENCE_DISABLED', 'science result exchange is closed')
 +    this.host.assertLive(agent)
 +  }
 +
@@ -305,7 +294,7 @@ index 0000000000..182f1413b0
 +   * @returns disposer for the binding.
 +   */
 +  bindResults(project: string, reader: ScienceResultReader): () => void {
-+    if (this.closed || project !== this.project || this.reader !== undefined) reject('SCIENCE_BINDING_REJECTED', 'science result binding unavailable')
++    if (this.isClosed() || project !== this.project || this.reader !== undefined) reject('SCIENCE_BINDING_REJECTED', 'science result binding unavailable')
 +    this.reader = reader
 +    return () => { if (this.reader === reader) { this.reader = undefined; this.invalidate() } }
 +  }
@@ -318,7 +307,7 @@ index 0000000000..182f1413b0
 +   * @returns after the caller's consent is installed; this does not imply the other parent's consent.
 +   */
 +  async authorize(parent: Agent, request: SciencePeerConsent, signal: AbortSignal): Promise<void> {
-+    if (this.closed) reject('SCIENCE_DISABLED', 'science result exchange is closed')
++    if (this.isClosed()) reject('SCIENCE_DISABLED', 'science result exchange is closed')
 +    const { childId, peerChildId, peerParent } = request
 +    this.host.assertLive(parent); this.host.assertLive(peerParent)
 +    if (parent.id === peerParent.id || childId === peerChildId) reject('SCIENCE_INVALID_PAIR', 'science exchange requires two distinct parents and children')
@@ -327,12 +316,17 @@ index 0000000000..182f1413b0
 +    await this.host.endpoint(peerParent, peerChildId, signal)
 +    signal.throwIfAborted()
 +    this.host.assertLive(parent); this.host.assertLive(peerParent)
-+    if (this.closed || epoch !== this.epoch) reject('SCIENCE_GRANT_CHANGED', 'consent changed during authorization')
++    if (this.isClosed() || epoch !== this.epoch) reject('SCIENCE_GRANT_CHANGED', 'consent changed during authorization')
 +    let pair = [...this.pairs].find(value => value.endpoints.some(endpoint => endpoint.parent === parent && endpoint.childId === childId)
 +      && value.endpoints.some(endpoint => endpoint.parent === peerParent && endpoint.childId === peerChildId))
 +    if (pair === undefined) {
 +      if (this.pairs.size >= this.maxPairs) reject('SCIENCE_PAIR_CONFLICT', 'configured science pair capacity reached; revoke before replacing it')
-+      pair = { endpoints: [{ parent, childId }, { parent: peerParent, childId: peerChildId }], consent: new Set(), controller: new AbortController(), references: new Map() }
++      pair = {
++        endpoints: [{ parent, childId }, { parent: peerParent, childId: peerChildId }],
++        consent: new Set(),
++        controller: new AbortController(),
++        references: new Map(),
++      }
 +      this.pairs.add(pair)
 +    }
 +    pair.consent.add(parent)
@@ -344,7 +338,10 @@ index 0000000000..182f1413b0
 +   */
 +  revoke(parent: Agent, childId?: SessionId, peerChildId?: SessionId): void {
 +    this.host.assertLive(parent)
-+    const owned = [...this.pairs].filter(pair => pair.endpoints.some(endpoint => endpoint.parent === parent && (childId === undefined || endpoint.childId === childId)) && (peerChildId === undefined || pair.endpoints.some(endpoint => endpoint.childId === peerChildId)))
++    const owned = [...this.pairs].filter(pair =>
++      pair.endpoints.some(endpoint =>
++        endpoint.parent === parent && (childId === undefined || endpoint.childId === childId))
++      && (peerChildId === undefined || pair.endpoints.some(endpoint => endpoint.childId === peerChildId)))
 +    if (!owned.length) reject('SCIENCE_NO_GRANT', 'caller does not own the science pair')
 +    for (const pair of owned) this.invalidate(pair)
 +  }
@@ -355,7 +352,7 @@ index 0000000000..182f1413b0
 +  }
 +
 +  /** Close extension admission on host teardown or disable. Already accepted inbox work remains host-owned. */
-+  close(): void { this.closed = true; this.reader = undefined; this.invalidate() }
++  close(): void { this.shutdown = true; this.reader = undefined; this.invalidate() }
 +
 +  /**
 +   * Admit a result reference or one correlated reverse reply through the existing continuation manager.
@@ -367,14 +364,16 @@ index 0000000000..182f1413b0
 +   */
 +  async send(sender: Agent, targetId: SessionId, input: ScienceResultMessage, signal: AbortSignal): Promise<MessageId> {
 +    const message = payloadSchema.parse(input) as ScienceResultMessage
-+    const pair = [...this.pairs].find(value => value.endpoints.some(endpoint => endpoint.childId === sender.id) && value.endpoints.some(endpoint => endpoint.childId === targetId))
-+    if (this.closed || this.pairs.size === 0) reject('SCIENCE_NO_GRANT', 'no active science pair')
++    const pair = [...this.pairs].find(value =>
++      value.endpoints.some(endpoint => endpoint.childId === sender.id)
++      && value.endpoints.some(endpoint => endpoint.childId === targetId))
++    if (this.isClosed() || this.pairs.size === 0) reject('SCIENCE_NO_GRANT', 'no active science pair')
 +    if (!pair) reject('SCIENCE_TARGET_DENIED', 'target is not the authorized science peer')
 +    const senderEndpoint = pair.endpoints.find(endpoint => endpoint.childId === sender.id)
 +    const target = pair.endpoints.find(endpoint => endpoint.childId === targetId)
 +    if (!senderEndpoint || !target || senderEndpoint === target) reject('SCIENCE_TARGET_DENIED', 'target is not the authorized science peer')
 +    const check = () => {
-+      if (this.closed || !this.pairs.has(pair) || pair.consent.size !== 2) reject('SCIENCE_NO_GRANT', 'both exact parents must authorize the science pair')
++      if (this.isClosed() || !this.pairs.has(pair) || pair.consent.size !== 2) reject('SCIENCE_NO_GRANT', 'both exact parents must authorize the science pair')
 +      this.host.assertLive(sender)
 +      for (const endpoint of pair.endpoints) this.host.assertLive(endpoint.parent)
 +      if (sender.session.header.parentSession !== senderEndpoint.parent.id) reject('SCIENCE_LINEAGE_DENIED', 'sender is not its authorizing parent child')
@@ -402,7 +401,8 @@ index 0000000000..182f1413b0
 +        pair.references.set(id, { sender: sender.id, target: targetId, resultId: message.resultId })
 +        return () => { pair.references.delete(id) }
 +      }
-+      const prior = pair.references.get(message.inReplyTo)!
++      const prior = pair.references.get(message.inReplyTo)
++      if (prior === undefined) reject('SCIENCE_REPLY_MISMATCH', 'reply must match one accepted reverse reference')
 +      pair.references.delete(message.inReplyTo)
 +      return () => { pair.references.set(message.inReplyTo, prior) }
 +    })

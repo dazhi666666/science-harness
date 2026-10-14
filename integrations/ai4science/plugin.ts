@@ -105,17 +105,23 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     async execute(args, exec) {
       if (!exec.agent || ctx.agents.get(exec.agent.id) !== exec.agent) throw new Error('science tool requires the exact live caller')
       const values = recordSchema.array(recordSchema.number().finite()).min(1).parse(args.samples)
-      const run = await ctx.subagents.start(config.provider, {
-        parent: exec.agent, signal: exec.signal, label: 'Summarize observations',
-        prompt: [{ type: 'text', text: `Call science_measure with ${JSON.stringify({ samples: values })}, then report its complete result including id.` }],
-        maxDepth: config.maxDepth,
-        toolFilter: { allow: ['science_measure', 'science_read'] },
+      const run = await ctx.subagents.startActivation({
+        provider: config.provider,
+        label: 'Summarize observations',
+        delivery: 'caller',
+        signal: exec.signal,
+        request: {
+          parent: exec.agent,
+          prompt: [{ type: 'text', text: `Call science_measure with ${JSON.stringify({ samples: values })}, then report its complete result including id.` }],
+          maxDepth: config.maxDepth,
+          toolFilter: { allow: ['science_measure', 'science_read'] },
+        },
       })
       try {
         const result = await run.result
         if (result.stopReason !== 'completed') throw new Error(`science worker ended: ${result.stopReason}`)
         return {
-          childId: run.id, stopReason: result.stopReason,
+          childId: run.childId, stopReason: result.stopReason,
           output: result.output.filter(block => block.type === 'text').map(block => block.text).join('\n'),
         }
       } finally {

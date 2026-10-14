@@ -18,6 +18,8 @@ import Projections from '@deepseek-ai/dsh-session-projection'
 import Jsonl from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionQuery from '@deepseek-ai/dsh-session-query-sqlite'
 import Subagents from '@deepseek-ai/dsh-subagent'
+import WorkingDirectory from '@deepseek-ai/dsh-working-directory'
+import LocalFs from '@deepseek-ai/dsh-fs-local'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageJson from '@deepseek-ai/dsh-storage-json'
@@ -92,7 +94,7 @@ export async function boot(label: string, enabled = true, maxActiveSubagents = 8
   const modules = new Map<string, unknown>([
     ['llm', Llm], ['sessions', Sessions], ['prompt', SystemPrompt], ['tools', Tools],
     ['agents', Agents], ['projections', Projections], ['jsonl', Jsonl], ['query', SessionQuery],
-    ['loop', AgentLoop], ['subagents', Subagents], ['spawn', Spawn],
+    ['loop', AgentLoop], ['subagents', Subagents], ['fs-local', LocalFs], ['working-directory', WorkingDirectory], ['spawn', Spawn],
     ['storage', Storage], ['storage-json', StorageJson], ['storage-domain', StorageDomain],
     ['science', Science], ['teams', TeamService], ['team-tools', TeamTools],
     ['observation', { name: 'observation', inject: ['llm', 'sessions', 'agents'], apply(observed: Context) {
@@ -112,7 +114,7 @@ export async function boot(label: string, enabled = true, maxActiveSubagents = 8
     jsonl: { root: join(root, 'sessions'), compression: 'none' },
     query: { path: ':memory:', openAt: 'never' }, loop: { agents: [] },
     subagents: { maxActiveSubagents, ...(enabled ? { scienceResultProject: 'cross-branch-project', scienceResultMaxPending: 8 } : {}) },
-    spawn: { providerName: 'spawn' }, 'storage-json': { root: join(root, 'records') },
+    spawn: { providerName: 'spawn' }, 'fs-local': { cwd: root }, 'working-directory': { defaultDirectory: root }, 'storage-json': { root: join(root, 'records') },
     'storage-domain': { backend: 'json' }, science: { project: 'cross-branch-project', provider: 'spawn', maxDepth: 3, crossBranchResults: enabled },
     teams: { maxMembers: 8, maxTasks: 16, maxPendingMessagesPerMember: 8, maxMessageBytes: 4096, disposalTimeoutMs: 5000 },
     'team-tools': { freshProvider: 'spawn', forkProvider: 'fork' },
@@ -133,7 +135,7 @@ export async function boot(label: string, enabled = true, maxActiveSubagents = 8
     if (unloaded.length) throw new Error(`unloaded entries: ${unloaded.map(entry => entry.options.name)}`)
   } catch (error) { await ctx.fiber.dispose(); throw error }
   return { ctx, model, root, trace, report, note, async close() {
-    try { await ctx.subagents.drainContinuableDescendants(ctx.agents.roots()); await ctx.fiber.dispose() }
+    try { await ctx.subagents.drainDescendants(ctx.agents.roots()); await ctx.fiber.dispose() }
     finally {
       await writeFile(join(root, 'timeline.json'), JSON.stringify(trace, null, 2) + '\n')
       await writeFile(join(root, 'report.json'), JSON.stringify(report, null, 2) + '\n')
@@ -150,8 +152,8 @@ export function spawn(probe: Probe, owner: Agent, name: string, actor = name) {
   })
 }
 export function branch(probe: Probe, owner: Agent, id: string) {
-  return probe.ctx.subagents.startContinuable({
-    provider: 'spawn', childId: SessionId(id), label: id, signal: signal(),
+  return probe.ctx.subagents.startActivation({
+    provider: 'spawn', childId: SessionId(id), label: id, delivery: 'parent', signal: signal(),
     request: { parent: owner, prompt: text(`ACTOR ${id}`), maxDepth: 3 },
   })
 }

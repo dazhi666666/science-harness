@@ -168,7 +168,7 @@ export async function apply(ctx:Context, config:Config):Promise<void> {
   const id=SessionId(randomUUID());const child:Participant={id,role:a.role,branch:a.branch,parentId:p.id,assignment:a.assignment,analysisPlan:a.analysis_plan,createdAt:new Date().toISOString()}
   participants.set(id,child);write(`briefs/${id}.json`,child);changed()
   try {
-   const started=await ctx.subagents.startContinuable({provider:'spawn',childId:id,label:`${a.role} ${a.branch}`,request:{parent:agent,prompt:[{type:'text',text:`Begin your assigned ${child.role} ${child.branch} work. Assignment: ${child.assignment}. Prespecified analysis plan: ${child.analysisPlan}`}],agentOptions:{provider:'stepfun-science',model:'step-3.7-flash',maxTokens:config.maxOutputTokens},maxDepth:2,toolFilter:{allow:allowed(child.role)}},signal:exec.signal})
+   const started=await ctx.subagents.startActivation({provider:'spawn',childId:id,label:`${a.role} ${a.branch}`,delivery:'parent',request:{parent:agent,prompt:[{type:'text',text:`Begin your assigned ${child.role} ${child.branch} work. Assignment: ${child.assignment}. Prespecified analysis plan: ${child.analysisPlan}`}],agentOptions:{provider:'stepfun-science',model:'step-3.7-flash',maxTokens:config.maxOutputTokens},maxDepth:2,toolFilter:{allow:allowed(child.role)}},signal:exec.signal})
    event('participant-created',{participant:child,messageId:started.messageId});return{participant:child,messageId:started.messageId}
   } catch(error) {fail(`Participant creation failed for ${a.role} ${a.branch}`);throw error}
  })
@@ -216,7 +216,7 @@ export async function apply(ctx:Context, config:Config):Promise<void> {
   report=await saveReport({root,reportId:'research-report',ownerId:p.id,markdown,analysisPaths:refs.analysisPaths,rawPaths:refs.rawPaths,runIds:refs.runIds,decisionPaths:refs.decisionPaths})
   state='completed';event('model-report-published',report);changed();clearTimeout(timer)
   const researchIds=[...participants.values()].filter(v=>v.role==='research').map(v=>v.id)
-  await ctx.subagents.drainContinuableChildren(agent,researchIds)
+  await ctx.subagents.drainChildren(agent,researchIds)
   await instrument.close();event('controlled-shutdown',{remainingAgents:ctx.agents.list().filter(a=>participants.has(a.id)).map(a=>a.id),reason:'Report completed; descendant waits stopped through host child-first drain'});persist();exec.concludeTurn()
   process.stdout.write(`AI4SCIENCE_REPORT=${join(root,report.artifactPath)}\n`)
   return report

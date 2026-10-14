@@ -175,7 +175,7 @@ it('multiple explicit pairs retain provenance, scoped revoke, old-instance and p
   await expect(
     w.org.send(a, c.id, { kind: 'reference', resultId: 'foreign-result' }, signal()),
   ).rejects.toMatchObject({ code: 'SCIENCE_RESULT_UNAVAILABLE' })
-  await w.p.ctx.subagents.drainContinuableChildren(w.root.agent, [parents[2]!.agent.id])
+  await w.p.ctx.subagents.drainChildren(w.root.agent, [parents[2]!.agent.id])
   expect(w.p.ctx.agents.get(parents[2]!.agent.id)).toBeUndefined()
   await expect(w.org.send(a, c.id, { kind: 'reference', resultId }, signal())).rejects.toMatchObject({
     code: 'SCIENCE_NO_GRANT',

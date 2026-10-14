@@ -63,13 +63,23 @@ export class ScienceResultExchange {
   private readonly pairs = new Set<Pair>()
   private reader: ScienceResultReader | undefined
   private epoch = 0
-  private closed = false
+  private shutdown = false
+  /**
+   * Read through a call so a `close()` that lands during an awaited check still
+   * narrows nothing in the caller; the admission checks below must observe it.
+   */
+  private isClosed(): boolean { return this.shutdown }
 
-  constructor(readonly project: string, private readonly maxPending: number, private readonly host: ScienceResultHost, readonly maxPairs = 1) {}
+  constructor(
+    readonly project: string,
+    private readonly maxPending: number,
+    private readonly host: ScienceResultHost,
+    readonly maxPairs = 1,
+  ) {}
 
   /** Validate exact native residency and teardown admission without granting any communication rights. */
   assertLiveParticipant(agent: Agent): void {
-    if (this.closed) reject('SCIENCE_DISABLED', 'science result exchange is closed')
+    if (this.isClosed()) reject('SCIENCE_DISABLED', 'science result exchange is closed')
     this.host.assertLive(agent)
   }
 
@@ -80,7 +90,7 @@ export class ScienceResultExchange {
    * @returns disposer for the binding.
    */
   bindResults(project: string, reader: ScienceResultReader): () => void {
-    if (this.closed || project !== this.project || this.reader !== undefined) reject('SCIENCE_BINDING_REJECTED', 'science result binding unavailable')
+    if (this.isClosed() || project !== this.project || this.reader !== undefined) reject('SCIENCE_BINDING_REJECTED', 'science result binding unavailable')
     this.reader = reader
     return () => { if (this.reader === reader) { this.reader = undefined; this.invalidate() } }
   }
@@ -93,7 +103,7 @@ export class ScienceResultExchange {
    * @returns after the caller's consent is installed; this does not imply the other parent's consent.
    */
   async authorize(parent: Agent, request: SciencePeerConsent, signal: AbortSignal): Promise<void> {
-    if (this.closed) reject('SCIENCE_DISABLED', 'science result exchange is closed')
+    if (this.isClosed()) reject('SCIENCE_DISABLED', 'science result exchange is closed')
     const { childId, peerChildId, peerParent } = request
     this.host.assertLive(parent); this.host.assertLive(peerParent)
     if (parent.id === peerParent.id || childId === peerChildId) reject('SCIENCE_INVALID_PAIR', 'science exchange requires two distinct parents and children')
@@ -102,12 +112,17 @@ export class ScienceResultExchange {
     await this.host.endpoint(peerParent, peerChildId, signal)
     signal.throwIfAborted()
     this.host.assertLive(parent); this.host.assertLive(peerParent)
-    if (this.closed || epoch !== this.epoch) reject('SCIENCE_GRANT_CHANGED', 'consent changed during authorization')
+    if (this.isClosed() || epoch !== this.epoch) reject('SCIENCE_GRANT_CHANGED', 'consent changed during authorization')
     let pair = [...this.pairs].find(value => value.endpoints.some(endpoint => endpoint.parent === parent && endpoint.childId === childId)
       && value.endpoints.some(endpoint => endpoint.parent === peerParent && endpoint.childId === peerChildId))
     if (pair === undefined) {
       if (this.pairs.size >= this.maxPairs) reject('SCIENCE_PAIR_CONFLICT', 'configured science pair capacity reached; revoke before replacing it')
-      pair = { endpoints: [{ parent, childId }, { parent: peerParent, childId: peerChildId }], consent: new Set(), controller: new AbortController(), references: new Map() }
+      pair = {
+        endpoints: [{ parent, childId }, { parent: peerParent, childId: peerChildId }],
+        consent: new Set(),
+        controller: new AbortController(),
+        references: new Map(),
+      }
       this.pairs.add(pair)
     }
     pair.consent.add(parent)
@@ -119,7 +134,10 @@ export class ScienceResultExchange {
    */
   revoke(parent: Agent, childId?: SessionId, peerChildId?: SessionId): void {
     this.host.assertLive(parent)
-    const owned = [...this.pairs].filter(pair => pair.endpoints.some(endpoint => endpoint.parent === parent && (childId === undefined || endpoint.childId === childId)) && (peerChildId === undefined || pair.endpoints.some(endpoint => endpoint.childId === peerChildId)))
+    const owned = [...this.pairs].filter(pair =>
+      pair.endpoints.some(endpoint =>
+        endpoint.parent === parent && (childId === undefined || endpoint.childId === childId))
+      && (peerChildId === undefined || pair.endpoints.some(endpoint => endpoint.childId === peerChildId)))
     if (!owned.length) reject('SCIENCE_NO_GRANT', 'caller does not own the science pair')
     for (const pair of owned) this.invalidate(pair)
   }
@@ -130,7 +148,7 @@ export class ScienceResultExchange {
   }
 
   /** Close extension admission on host teardown or disable. Already accepted inbox work remains host-owned. */
-  close(): void { this.closed = true; this.reader = undefined; this.invalidate() }
+  close(): void { this.shutdown = true; this.reader = undefined; this.invalidate() }
 
   /**
    * Admit a result reference or one correlated reverse reply through the existing continuation manager.
@@ -142,14 +160,16 @@ export class ScienceResultExchange {
    */
   async send(sender: Agent, targetId: SessionId, input: ScienceResultMessage, signal: AbortSignal): Promise<MessageId> {
     const message = payloadSchema.parse(input) as ScienceResultMessage
-    const pair = [...this.pairs].find(value => value.endpoints.some(endpoint => endpoint.childId === sender.id) && value.endpoints.some(endpoint => endpoint.childId === targetId))
-    if (this.closed || this.pairs.size === 0) reject('SCIENCE_NO_GRANT', 'no active science pair')
+    const pair = [...this.pairs].find(value =>
+      value.endpoints.some(endpoint => endpoint.childId === sender.id)
+      && value.endpoints.some(endpoint => endpoint.childId === targetId))
+    if (this.isClosed() || this.pairs.size === 0) reject('SCIENCE_NO_GRANT', 'no active science pair')
     if (!pair) reject('SCIENCE_TARGET_DENIED', 'target is not the authorized science peer')
     const senderEndpoint = pair.endpoints.find(endpoint => endpoint.childId === sender.id)
     const target = pair.endpoints.find(endpoint => endpoint.childId === targetId)
     if (!senderEndpoint || !target || senderEndpoint === target) reject('SCIENCE_TARGET_DENIED', 'target is not the authorized science peer')
     const check = () => {
-      if (this.closed || !this.pairs.has(pair) || pair.consent.size !== 2) reject('SCIENCE_NO_GRANT', 'both exact parents must authorize the science pair')
+      if (this.isClosed() || !this.pairs.has(pair) || pair.consent.size !== 2) reject('SCIENCE_NO_GRANT', 'both exact parents must authorize the science pair')
       this.host.assertLive(sender)
       for (const endpoint of pair.endpoints) this.host.assertLive(endpoint.parent)
       if (sender.session.header.parentSession !== senderEndpoint.parent.id) reject('SCIENCE_LINEAGE_DENIED', 'sender is not its authorizing parent child')
@@ -177,7 +197,8 @@ export class ScienceResultExchange {
         pair.references.set(id, { sender: sender.id, target: targetId, resultId: message.resultId })
         return () => { pair.references.delete(id) }
       }
-      const prior = pair.references.get(message.inReplyTo)!
+      const prior = pair.references.get(message.inReplyTo)
+      if (prior === undefined) reject('SCIENCE_REPLY_MISMATCH', 'reply must match one accepted reverse reference')
       pair.references.delete(message.inReplyTo)
       return () => { pair.references.set(message.inReplyTo, prior) }
     })
