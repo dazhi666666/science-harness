@@ -1,0 +1,55 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write README.md
+/science-harness-experiment-infrastructure-v0-2:
+  en: 002162b8513ca9c0
+  zh: a7177814bb5fb5b1
+/science-harness-experiment-infrastructure-v0-2/project-vision:
+  en: 3a0a5ee71f972d76
+  zh: ba8fd7a21930cc60
+/science-harness-experiment-infrastructure-v0-2/project-vision/a-three-layer-research-architecture:
+  en: 2d868ebfb44c4a9b
+  zh: 5a5deef83b5deed9
+/science-harness-experiment-infrastructure-v0-2/project-vision/flexible-multi-agent-organizations:
+  en: 663770e5d0b6b1b0
+  zh: c944b4f6aeb9a13f
+/science-harness-experiment-infrastructure-v0-2/project-vision/a-platform-built-through-plugins:
+  en: 8986ab75d01ed546
+  zh: 6c29bca40bc9bec2
+/science-harness-experiment-infrastructure-v0-2/project-vision/persistent-research-and-accountable-autonomy:
+  en: 9d3beea4a8c05080
+  zh: 02bb7cd38a265dca
+/science-harness-experiment-infrastructure-v0-2/quick-start:
+  en: 41565d00def539cd
+  zh: 86f1cd0564cee433
+/science-harness-experiment-infrastructure-v0-2/capabilities:
+  en: d9131ad6073cee9b
+  zh: 371b462cbe61072f
+/science-harness-experiment-infrastructure-v0-2/experiment-collaboration-and-feedback:
+  en: ebf1c27fd2260117
+  zh: a542305faf47ee57
+/science-harness-experiment-infrastructure-v0-2/independently-running-execution-plugin:
+  en: cfe06f83e16efab6
+  zh: 1d5d9fe9a8f7eec7
+/science-harness-experiment-infrastructure-v0-2/copyable-provider-example:
+  en: e00244f748aeac27
+  zh: c6b32935d3fc0e51
+/science-harness-experiment-infrastructure-v0-2/local-dashboard:
+  en: 7a7163a194a33289
+  zh: 24def7e2dcd563af
+/science-harness-experiment-infrastructure-v0-2/development-entry-points:
+  en: 57d159a4d791baf4
+  zh: 99ff03627adc58a8
+/science-harness-experiment-infrastructure-v0-2/testing-and-contributions:
+  en: 763f7079200b51c4
+  zh: eb48545323d83639
+/science-harness-experiment-infrastructure-v0-2/scope-and-limitations:
+  en: 83900917a333849e
+  zh: 3168ddf2973f57b6
+/science-harness-experiment-infrastructure-v0-2/upstream-and-licensing:
+  en: c96799a689e8ed1e
+  zh: e7cbfe877adb5237
+/science-harness-experiment-infrastructure-v0-2/following-harness-upstream:
+  en: 26c3619f344ceb38
+  zh: 5eee38ca1996e346
