@@ -1,0 +1,16 @@
+{
+  "name": "agent-router",
+  "version": "0.3.0",
+  "description": "Local multi-agent collaboration router: a main agent delegates tasks to coding-agent CLIs through a shared task board",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "router": "node router.mjs",
+    "start": "node web/server.mjs",
+    "test": "node --test core/test.mjs web/test.mjs chat-agent/test.mjs"
+  }
+}

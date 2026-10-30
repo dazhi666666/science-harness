@@ -1,0 +1,202 @@
+// ZCode adapter: headless `zcode -p`. Workspace-scope MCP config is written to
+// <cwd>/.zcode/config.json so the board server auto-connects for this run; the
+// conversation's own MCP servers (runtime-config.json 的 mcpServers 段) 一并合入，
+// 只对该对话的进程生效，写入-拉起-读配置的关键窗经文件锁跨进程串行。
+// --json 输出带 sessionId，供主代理 followup_task 续派时 --resume 恢复会话。
+import fs from 'node:fs';
+import path from 'node:path';
+import { loadConfig } from './config.mjs';
+import { boardMcpEntry, conversationMcpServers, spawnCollect, withWorkspaceConfig, writeConfigEra } from './spawn-util.mjs';
+import { createThreadWriter } from './thread.mjs';
+
+let providerSeq = 0; // provider 覆盖文件的唯一序号（并行任务各用各的，互不覆盖/误删）
+
+// CLI 的内置 Provider 配置刷新日志（"ZCode Built-in missing/skipped (not-due)"）每几分钟
+// 刷一条到 stderr，无害；进程被杀时 stderr 里往往只剩这些行，会盖住真正的错误原因。
+const NOISE = /^\s*ZCode Built-in (missing|skipped|updated)\b/;
+const cleanStderr = s => String(s || '').split('\n').filter(l => !NOISE.test(l)).join('\n').trim();
+
+/**
+ * Run one ZCode session.
+ * opts: { prompt, cwd, agentName, roster, dataFile, timeoutMs, onText, resumeSessionId }
+ * Returns { sessionId, text, isError }.
+ */
+export async function runZcode(opts) {
+  const {
+    prompt, cwd, agentName, roster, dataFile,
+    timeoutMs = 0, onText = () => {}, onChild, threadPath, resumeSessionId,
+    model: modelOverride, // 主代理单独选的模型覆盖类型默认（子代理不传，走类型段）
+    effort: effortOverride, // 思考强度：写入 defaultModelSelection.options.reasoningLevel（主代理覆盖，子代理走类型段）
+    entry: entryOverride, // 开源版等其它构建的入口；缺省用 npm 版 zcode
+    configKind: configKindOverride // 读哪段配置（zcode / zcode-oss，模型与思考强度都在里面）；缺省 zcode
+  } = opts;
+  const thread = threadPath ? createThreadWriter(threadPath) : null;
+  // 逐字流式：text_delta 增量写入 <thread>.stream.jsonl，桥接以 assistant-stream 帧转发给 UI；
+  // 每回合截断重写（上一回合的增量已结算为正式 assistant 条目，不再需要）
+  const streamPath = threadPath ? threadPath.replace(/\.jsonl$/, '') + '.stream.jsonl' : null;
+  if (streamPath) { try { fs.writeFileSync(streamPath, ''); } catch {} }
+  const streamAppend = rec => { if (streamPath) try { fs.appendFileSync(streamPath, JSON.stringify(rec) + '\n'); } catch {} };
+
+  const zcfgFile = path.join(cwd, '.zcode', 'config.json');
+
+  let stdout = '';
+  // stream-json：事件逐行到达，边跑边写线程条目（任务板/会话页随之渐进渲染），不再整轮结束才出全文。
+  // 旧版 CLI 不支持该格式时回退到整体解析（streamSeen=false 走老逻辑）。
+  // zcode 的 -p 只收 argv（没有 stdin/`-` 用法），而 Windows 整条命令行上限 32767 字符，
+  // 长 prompt（续派注入旧报告等）会 spawn ENAMETOOLONG。超过安全余量时把 prompt 落到临时
+  // 文件经 --attach 注入（附件内容完整进入模型上下文），-p 只带一句指引。
+  const argvPrompt = prompt.length <= 8000;
+  const promptFile = argvPrompt ? null : path.join(path.dirname(dataFile), `prompt-${agentName}-${process.pid}-${Date.now()}.txt`);
+  if (promptFile) fs.writeFileSync(promptFile, prompt);
+  const args = [
+    '-p', argvPrompt ? prompt : `The complete task instructions are in the attached file ${path.basename(promptFile)}. Read it fully and follow it exactly.`,
+    '--mode', 'yolo', '--cwd', cwd, '--output-format', 'stream-json', '--verbose',
+    ...(promptFile ? ['--attach', promptFile] : [])
+  ];
+  if (resumeSessionId) args.push('--resume', resumeSessionId);
+  let code, stderr, spawnPromise;
+  let providerOverride;
+  let sessionId = resumeSessionId ?? null, streamText = null, streamIsError = false, streamSeen = false, assistantLogged = false;
+  let streamUsage = null, streamTokenCount = null;
+  let textBuf = '', thinkBuf = '';
+  // 失败时把会话 id 挂在错误上抛给调用方：回合失败多是瞬时故障（断网/进程被杀），
+  // 会话与已写入的消息都还在，下回合应 --resume 续跑而不是整链作废
+  const fail = msg => {
+    thread?.add('result', { text: msg, isError: true });
+    const e = new Error(msg);
+    if (sessionId) e.sessionId = sessionId;
+    throw e;
+  };
+  // ModelUsageSummary → 仅留数值字段（供桥接层合成 dsh TokenUsage / tokenUsage 投影）
+  const normalizeUsage = u => {
+    if (!u || typeof u !== 'object') return null;
+    const pick = n => { const v = Math.round(Number(n)); return Number.isFinite(v) && v > 0 ? v : 0; };
+    const out = {
+      inputTokens: pick(u.inputTokens), outputTokens: pick(u.outputTokens),
+      totalTokens: pick(u.totalTokens), cacheReadTokens: pick(u.cacheReadTokens),
+      cacheWriteTokens: pick(u.cacheWriteTokens), reasoningTokens: pick(u.reasoningTokens),
+      modelRequestCount: pick(u.modelRequestCount)
+    };
+    return out.inputTokens || out.outputTokens ? out : null;
+  };
+  try {
+  const config = loadConfig();
+  const cfg = config[configKindOverride] || config.zcode;
+  const model = modelOverride || cfg.model;
+  const effort = effortOverride || cfg.effort;
+  const env = {};
+  if (model || effort) {
+    const source = process.env.ZCODE_PERSONAL_PROVIDER_CONFIG_FILE || path.join(process.env.USERPROFILE || process.env.HOME || '', '.zcode', 'v2', 'provider_config.json');
+    const provider = JSON.parse(fs.readFileSync(source, 'utf8'));
+    // 选中模型 → 整体替换 defaultModelSelection；只选强度 → 在现有默认选择上加 options.reasoningLevel。
+    // 档位合法性由 UI 按注册表校验；写进配置后由 CLI 自己再验（不认识就报模型不可用）
+    const base = provider.config.defaultModelSelection || {};
+    const slash = model ? model.indexOf('/') : -1;
+    provider.config.defaultModelSelection = {
+      ...(model ? { providerId: model.slice(0, slash), modelId: model.slice(slash + 1) } : { providerId: base.providerId, modelId: base.modelId }),
+      ...(effort ? { options: { reasoningLevel: effort } } : {})
+    };
+    // 文件名带序号：并行任务各用各的覆盖文件，收尾删除不会影响别人
+    providerOverride = path.join(path.dirname(dataFile), `provider-${agentName}-${process.pid}-${++providerSeq}.json`);
+    fs.writeFileSync(providerOverride, JSON.stringify(provider));
+    env.ZCODE_PERSONAL_PROVIDER_CONFIG_FILE = providerOverride;
+  }
+  // zcode stream-json 事件流（自有格式：type 带命名空间，内容在 payload）：
+  //   model.streaming { kind: start|text_start|text_delta|text_end|finish, delta }
+  //   tool.updated    { toolCallId, toolName, input } / { toolCallId, result: { success, content } }
+  //   turn.completed  { response, resultType } —— 最终全文与成败
+  // 条目随到达顺序写入线程，界面渐进渲染；thinking 增量的 kind 名未知，防御性映射
+  const onStdoutLine = line => {
+    stdout += line + '\n';
+    const t = line.trim();
+    if (!t.startsWith('{')) return;
+    let ev; try { ev = JSON.parse(t); } catch { return; }
+    streamSeen = true;
+    if (ev.sessionId) sessionId = ev.sessionId;
+    const p = ev.payload || {};
+    if (ev.type === 'model.streaming') {
+      const kind = p.kind || '';
+      const mid = String(p.assistantMessageId || 'msg');
+      if (kind === 'text_delta' && p.delta) {
+        textBuf += p.delta;
+        streamAppend({ id: mid, t: Date.now(), text: p.delta });
+      } else if (/thinking|reasoning/.test(kind) && kind.endsWith('_delta') && p.delta) thinkBuf += p.delta;
+      if ((kind === 'text_end' || kind === 'finish') && textBuf) {
+        thread?.add('assistant', { text: textBuf });
+        onText(textBuf);
+        assistantLogged = true;
+        textBuf = '';
+        streamAppend({ id: mid, done: 1 });
+      }
+      if ((/thinking|reasoning/.test(kind) && kind.endsWith('_end') || kind === 'finish') && thinkBuf) {
+        thread?.add('thought', { text: thinkBuf });
+        thinkBuf = '';
+      }
+    } else if (ev.type === 'tool.updated') {
+      if (p.input !== undefined && p.toolName) thread?.add('tool_use', { id: p.toolCallId, name: p.toolName, input: p.input });
+      else if (p.result !== undefined && p.toolCallId) thread?.add('tool_result', { id: p.toolCallId, text: String(p.result?.content ?? ''), isError: p.result?.success === false });
+    } else if (ev.type === 'turn.completed') {
+      streamText = String(p.response ?? '').trim();
+      streamIsError = String(p.resultType ?? 'success') !== 'success';
+      streamUsage = normalizeUsage(p.usage);
+      streamTokenCount = Number.isFinite(Number(p.tokenCount)) ? Math.round(Number(p.tokenCount)) : null;
+      if (streamText && !assistantLogged) { thread?.add('assistant', { text: streamText }); assistantLogged = true; }
+      thread?.add('result', {
+        text: streamText, isError: streamIsError,
+        ...(streamUsage ? { usage: streamUsage } : {}),
+        ...(streamTokenCount !== null ? { tokenCount: streamTokenCount } : {})
+      });
+    }
+  };
+  // 「写入→拉起→CLI 读配置→还原」整段在文件锁内：对话级 MCP 只存在于本任务的关键窗，
+  // 锁释放时文件已还原成原件 —— 同目录并行的其他对话/任务快照不到本对话的服务器
+  spawnPromise = await withWorkspaceConfig(
+    zcfgFile,
+    era => {
+      const base = era.original?.toString('utf8');
+      const zcfg = base ? JSON.parse(base) : {};
+      zcfg.mcp = { ...(zcfg.mcp || {}), servers: {
+        ...(zcfg.mcp?.servers || {}),
+        ...conversationMcpServers(),
+        board: boardMcpEntry({ agentName }) // board 最后写：同名对话级 MCP 也不能挤掉任务板
+      } };
+      writeConfigEra(era, zcfgFile, JSON.stringify(zcfg, null, 1));
+    },
+    () => spawnCollect(process.execPath, [entryOverride || cfg.entry, ...args], { timeoutMs, env, onChild, onStdoutLine })
+  );
+  ({ code, stderr } = await spawnPromise);
+  } finally {
+    if (providerOverride) { try { fs.unlinkSync(providerOverride); } catch {} }
+    if (promptFile) { try { fs.unlinkSync(promptFile); } catch {} }
+  }
+
+  if (streamSeen && streamText !== null) {
+    // 事件流完整：条目（assistant/thought/tool/result）已随到达顺序写入线程
+    if (streamIsError || code !== 0) fail(`zcode 会话失败: ${streamText || cleanStderr(stderr).slice(0, 300) || String(code)}`);
+    return { sessionId, text: streamText, isError: false };
+  }
+  // 没等到 result 事件（旧版 CLI 只输出一个最终 JSON、或流被截断）：回退整体解析
+  let parsed = null;
+  for (let idx = stdout.lastIndexOf('{'); idx >= 0; idx = stdout.lastIndexOf('{', idx - 1)) {
+    try { parsed = JSON.parse(stdout.slice(idx)); break; } catch { /* 继续向前找 */ }
+  }
+  if (!parsed) {
+    const tail = cleanStderr(stderr) || cleanStderr(stdout);
+    fail(`zcode 输出无法解析为 JSON（退出码 ${code}）: ${tail.slice(0, 400) || '(无有效输出)'}`);
+  }
+  const text = String(parsed.response ?? '').trim();
+  if (parsed.sessionId) sessionId = parsed.sessionId;
+  if (text && !assistantLogged) thread?.add('assistant', { text });
+  if (code !== 0) {
+    const tail = cleanStderr(parsed.error?.message ?? stderr);
+    fail(`zcode 退出码 ${code}${tail ? `: ${tail.slice(0, 400)}` : '（无有效错误输出；若为取消/暂停则为正常中断）'}`);
+  }
+  const legacyUsage = normalizeUsage(parsed.usage);
+  const legacyTokenCount = Number.isFinite(Number(parsed.tokenCount)) ? Math.round(Number(parsed.tokenCount)) : null;
+  thread?.add('result', {
+    text, isError: false,
+    ...(legacyUsage ? { usage: legacyUsage } : {}),
+    ...(legacyTokenCount !== null ? { tokenCount: legacyTokenCount } : {})
+  });
+  return { sessionId, text, isError: false };
+}

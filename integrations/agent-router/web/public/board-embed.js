@@ -1,0 +1,443 @@
+(() => {
+  const api = window.AgentRouter;
+  document.documentElement.lang = 'zh-CN';
+  document.body.dataset.arShell = '';
+  const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const icon = d => `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const ICONS = {
+    runs: icon('<path d="M10 5.5V10l3 2"/><circle cx="10" cy="10" r="7"/>'),
+    board: icon('<rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M7.5 3.5v13M12.5 3.5v13"/>'),
+    folder: icon('<path d="M3 6a1.5 1.5 0 0 1 1.5-1.5H8l2 2h5.5A1.5 1.5 0 0 1 17 8v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14V6Z"/>'),
+    settings: icon('<path d="M4 6h7M15 6h1M4 14h1M9 14h7"/><circle cx="13" cy="6" r="2"/><circle cx="7" cy="14" r="2"/>'),
+    env: icon('<path d="M3.5 10.5l4 4 9-9"/>')
+  };
+  const bar = document.createElement('header'); bar.className = 'ar-ui ar-topbar';
+  const MARK = '<span class="ar-mark" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="10" r="2"/><circle cx="15" cy="5" r="2"/><circle cx="15" cy="15" r="2"/><path d="M7 9.2 13 6M7 10.8l6 3.2"/></svg></span>';
+  bar.innerHTML = `<div class="ar-context"><strong id="ar-title"></strong><small id="ar-subtitle"></small></div>
+    <nav class="ar-actions" aria-label="运行操作">
+      <button data-panel="runs" aria-label="运行记录" title="运行记录">${ICONS.runs}<span class="label">运行记录</span></button>
+      <button data-panel="board" aria-label="任务与成员" title="任务与成员">${ICONS.board}<span class="label">任务</span></button>
+      <button data-panel="workspace" aria-label="工作区目录" title="工作区目录">${ICONS.folder}<span class="label">工作区</span></button>
+      <button data-panel="settings" aria-label="会话设置" title="会话设置">${ICONS.settings}<span class="label">设置</span></button>
+      <button data-panel="env" aria-label="环境检查" title="环境检查">${ICONS.env}<span class="label">环境</span></button>
+    </nav>`;
+  const panel = document.createElement('aside'); panel.className = 'ar-ui ar-panel'; panel.hidden = true; panel.setAttribute('aria-label', '运行详情');
+  panel.innerHTML = '<div class="ar-panel-head"><div><h2 id="ar-panel-title"></h2><p id="ar-panel-subtitle"></p></div><button id="ar-close" aria-label="关闭面板">✕</button></div><div class="ar-panel-body"></div>';
+  const toast = document.createElement('div'); toast.className = 'ar-ui ar-feedback'; toast.hidden = true; toast.setAttribute('role', 'status');
+  document.body.append(bar, panel, toast);
+  const $ = s => document.querySelector(s), pane = panel.querySelector('.ar-panel-body');
+  let ctx = null, ws = null, version = 0, controller, panelKind, opener, frame, toastTimer, events, eventsRun, refreshBusy = false, health = null;
+  const notify = (text, error = false) => { toast.textContent = text; toast.classList.toggle('error', error); toast.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.hidden = true, 6500); };
+  window.addEventListener('ar:notice', e => notify(e.detail.text, e.detail.error));
+
+  const AGENTS = {
+    claude: { name: 'Claude Code', color: '#d97757', install: 'npm i -g @anthropic-ai/claude-code', login: 'claude（首次运行按提示登录）', mode: '常驻会话，事件即时送达（推荐）' },
+    zcode: { name: 'ZCode', color: '#3b82f6', install: 'npm i -g zcode-app-cli', login: '复用 ZCode 桌面端的 GLM 套餐凭据', mode: '回合串联，事件在回合之间送达' },
+    'zcode-oss': { name: 'ZCode OSS', color: '#0ea5e9', install: 'E:\\ZCode 源码 pnpm build（apps/zcode-cli/packages/cli）', login: '复用 ~/.zcode 登录态（与 ZCode 共用）', mode: '同 ZCode：回合串联，stream-json 事件流' },
+    devin: { name: 'Devin', color: '#10b981', install: '从 Devin 官网安装 Devin CLI', login: 'devin auth login', mode: '常驻 ACP 会话' },
+    codex: { name: 'Codex', color: '#6b7280', install: 'npm i -g @openai/codex', login: 'codex login', mode: '回合串联，事件在回合之间送达' },
+    opencode: { name: 'OpenCode', color: '#f59e0b', install: 'npm i -g opencode-ai@latest', login: 'opencode auth login', mode: '回合串联，事件在回合之间送达' },
+    antigravity: { name: 'Antigravity', color: '#8b5cf6', install: '使用 Antigravity 官方安装器（命令 agy）', login: '复用 IDE 登录；需本地代理', mode: '常驻会话，事件即时送达' }
+  };
+  const KEYS = Object.keys(AGENTS);
+  const llm = () => health?.llm || {};
+  const agentName = a => AGENTS[a]?.name || llm()[a]?.label || a || 'Claude Code';
+  const avatar = a => `<span class="ar-avatar" style="--c:${AGENTS[a]?.color || '#0ea5e9'}">${esc(agentName(a)[0].toUpperCase())}</span>`;
+  const mainReady = a => AGENTS[a] ? !!health?.[a] : !!llm()[a]?.ready;
+  const statusNames = { running: '运行中', finished: '已结束', failed: '异常退出', interrupted: '已中断' };
+  const chatStatus = { running: '在线', finished: '休眠中', failed: '异常退出', interrupted: '已中断' };
+  const statusLabel = r => (r?.mode === 'chat' ? chatStatus : statusNames)[r?.status] || r?.status || '';
+  const loadHealth = async (force = false) => { if (!health || force) health = await api.request('/api/health'); return health; };
+  const loadWorkspace = async (force = false) => { if (!ws?.repo || force) { try { ws = await api.request('/api/workspace'); } catch {} } return ws; };
+
+  function drawContext() {
+    const run = ctx?.run, tasks = run?.board?.tasks || [];
+    const who = ctx ? (ctx.thread === 'manager' ? `主代理 · ${agentName(ctx.settings?.main)}` : `${ctx.agent || '成员'} · ${ctx.thread}`) : '';
+    $('#ar-title').innerHTML = ctx ? `${run ? `<span class="ar-status ${esc(run.status || '')}">${esc(statusLabel(run))}</span>` : ''}${esc(who)}` : '';
+    $('#ar-subtitle').textContent = ctx ? `${ctx.settings?.repo || ''}${run ? ` · ${tasks.filter(t => t.status === 'done').length}/${tasks.length} 个任务完成` : ' · 发送第一条消息开始'}` : '';
+    $('#ar-subtitle').title = $('#ar-subtitle').textContent;
+    if (frame && panelKind === 'board') {
+      const next = ctx?.runId ? `/board?embedded=1&runId=${encodeURIComponent(ctx.runId)}` : '/board?embedded=1';
+      if (frame.getAttribute('src') !== next) frame.src = next;
+    }
+    document.body.dataset.arReadonly = ctx && !ctx.capabilities.send ? 'true' : 'false';
+    rebrand();
+  }
+  function subscribe() {
+    const id = ctx?.run?.status === 'running' ? ctx.runId : null;
+    if (id === eventsRun) return;
+    events?.close(); events = null; eventsRun = id;
+    if (!id) return;
+    events = new EventSource(`/api/events?runId=${encodeURIComponent(id)}`);
+    events.onmessage = e => { const data = JSON.parse(e.data); if (data.runId !== ctx?.runId) return; if (data.type === 'snapshot') { ctx.run = data.run; drawContext(); } if (data.type === 'exit') refresh(); };
+  }
+  async function refresh(changed = false) {
+    if (refreshBusy && !changed) return;
+    const id = api.sessionId, token = ++version;
+    controller?.abort(); controller = new AbortController(); refreshBusy = true;
+    if (changed) { ctx = null; events?.close(); eventsRun = null; drawContext(); }
+    try {
+      ctx = id ? await api.request(`/api/sessions/${encodeURIComponent(id)}/context`, { signal: controller.signal }) : null;
+      if (token !== version) return;
+      drawContext(); subscribe();
+      if (changed && !panel.hidden && panelKind !== 'runs' && panelKind !== 'env') await renderPanel();
+    } catch (e) { if (e.name !== 'AbortError' && token === version) { ctx = null; drawContext(); notify(e.message, true); } }
+    finally { if (token === version) refreshBusy = false; }
+  }
+  function close() {
+    panel.hidden = true; delete document.body.dataset.arPanel; panelKind = null; markActive();
+    frame?.contentWindow.postMessage({ type: 'ar:visibility', visible: false }, location.origin); opener?.focus();
+  }
+  const markActive = () => bar.querySelectorAll('[data-panel]').forEach(b => b.classList.toggle('on', b.dataset.panel === panelKind));
+  async function show(kind) {
+    if (panelKind === kind && !panel.hidden) return close();
+    opener = document.activeElement; panelKind = kind; panel.hidden = false; document.body.dataset.arPanel = kind; markActive();
+    await renderPanel();
+  }
+  const TITLES = {
+    board: ['任务与成员', '当前会话所属运行，自动同步'],
+    workspace: ['工作区', '同一个工作区下的所有对话都在这个目录里运行'],
+    settings: ['运行设置', '主代理、子代理与模型'],
+    runs: ['运行记录', '多个目录可以同时运行'],
+    env: ['环境检查', 'Agent Router 调用本机已安装的各家 CLI']
+  };
+  async function renderPanel() {
+    frame?.remove(); frame = null; pane.hidden = false; pane.innerHTML = '';
+    const [title, sub] = TITLES[panelKind];
+    $('#ar-panel-title').textContent = title; $('#ar-panel-subtitle').textContent = sub;
+    if (panelKind === 'board') {
+      pane.hidden = true; frame = document.createElement('iframe'); frame.title = '当前运行任务板';
+      frame.src = ctx?.runId ? `/board?embedded=1&runId=${encodeURIComponent(ctx.runId)}` : '/board?embedded=1'; panel.append(frame); return;
+    }
+    if (panelKind === 'runs') return renderRuns();
+    if (panelKind === 'env') return renderEnv();
+    if (panelKind === 'workspace') return renderWorkspace();
+    return renderSettings();
+  }
+
+  /* ---------- 运行记录 ---------- */
+  async function renderRuns() {
+    const list = await api.request('/api/runs'); if (panelKind !== 'runs') return;
+    const day = ts => { const d = new Date(ts), t = new Date(); t.setHours(0, 0, 0, 0); const diff = (t - new Date(d).setHours(0, 0, 0, 0)) / 864e5; return diff <= 0 ? '今天' : diff === 1 ? '昨天' : diff < 7 ? '本周' : '更早'; };
+    let last = '';
+    pane.innerHTML = list.length ? `<div class="ar-run-list">${list.map(r => {
+      const g = day(r.mtime || Date.now());
+      const head = g !== last ? `<div class="ar-run-group">${(last = g)}</div>` : '';
+      return `${head}<button class="ar-run-card" data-run="${esc(r.id)}"><span class="ar-status ${esc(r.status)}">${esc(statusLabel(r))}</span><strong>${esc(r.goal || '未命名对话')}</strong><p>${esc([agentName(r.settings?.main), `${r.summary.done}/${r.summary.total} 个任务完成`, r.settings?.repo].filter(Boolean).join(' · '))}</p></button>`;
+    }).join('')}</div>` : '<p class="ar-help">还没有运行。点右上角「新会话」，把目标发给主代理就开始了。</p>';
+    pane.insertAdjacentHTML('beforeend', '<p class="ar-help" style="margin-top:18px">需要旧版控制台？<a href="/console/" style="color:var(--ar-accent)">打开经典控制台 ↗</a></p>');
+    pane.querySelectorAll('[data-run]').forEach(b => b.onclick = async () => {
+      try { const d = await api.request(`/api/runs/${b.dataset.run}`); api.open(d.managerSessionId); close(); } catch (e) { notify(e.message, true); }
+    });
+  }
+
+  /* ---------- 环境检查 ---------- */
+  async function renderEnv(force = false) {
+    pane.innerHTML = '<p class="ar-help">检测中…</p>';
+    const h = await loadHealth(force); if (panelKind !== 'env') return;
+    const rows = KEYS.map(k => `<div class="ar-row" style="cursor:default;align-items:flex-start">${avatar(k)}<span class="ar-row-text">
+      <span class="ar-row-main">${AGENTS[k].name}<span class="ar-badge ${h[k] ? 'ok' : 'bad'}">${h[k] ? '已找到' : '未找到'}</span></span>
+      <span class="ar-row-sub">${h[k] ? `默认模型：${esc(h.models?.[k] || '客户端默认')}` : `安装：<code>${esc(AGENTS[k].install)}</code>`}</span>
+      <span class="ar-row-sub">登录：${esc(AGENTS[k].login)}</span>
+      ${h.paths?.[k] ? `<span class="ar-mono" title="${esc(h.paths[k])}">${esc(h.paths[k])}</span>` : ''}</span></div>`).join('');
+    const chats = Object.entries(h.llm || {}).map(([k, v]) => `<div class="ar-row" style="cursor:default;align-items:flex-start">${avatar(k)}<span class="ar-row-text">
+      <span class="ar-row-main">${esc(v.label)}<span class="ar-badge ${v.ready ? 'ok' : 'bad'}">${v.ready ? '已配置' : '缺少密钥'}</span></span>
+      <span class="ar-row-sub">对话模型 · ${esc(v.model || '')}${v.codex ? '' : ' · 需要安装 Codex CLI'}${h.consult === k ? ' · 提供 consult 顾问工具' : ''}</span>
+      ${v.ready ? '' : `<span class="ar-row-sub">设置环境变量 <code>${esc(v.apiKeyEnv || 'apiKey')}</code> 后重启服务</span>`}</span></div>`).join('');
+    pane.innerHTML = `<section class="ar-section"><h3>编程代理（可当主代理或子代理）</h3><div class="ar-card">${rows}</div></section>
+      ${chats ? `<section class="ar-section"><h3>对话模型（经 Codex 运行，可当主代理或子代理）</h3><div class="ar-card">${chats}</div></section>` : ''}
+      <p class="ar-note">只检测了可执行文件是否存在，未验证登录状态。装在非默认位置时，在项目根目录的 <code>router.config.json</code> 里指定 <code>exe</code> 路径；需要代理的网络可以设置 <code>proxy</code>。</p>
+      <div class="ar-footer"><button class="outline" id="ar-recheck">重新检测</button></div>`;
+    $('#ar-recheck').onclick = () => renderEnv(true);
+  }
+
+  /* ---------- 工作区 ---------- */
+  // 目录属于工作区而不是单个会话（dsh 模型）：这里改的是整个协作空间的工作目录
+  async function renderWorkspace() {
+    pane.innerHTML = '<p class="ar-help">加载中…</p>';
+    let current;
+    try { current = (await loadWorkspace(true))?.repo ?? ctx?.settings?.repo ?? ''; } catch { current = ctx?.settings?.repo ?? ''; }
+    if (panelKind !== 'workspace') return;
+    pane.innerHTML = `
+      <section class="ar-section"><h3>工作目录</h3>
+        <div class="ar-inline"><input id="ar-repo" value="${esc(current)}" placeholder="粘贴文件夹路径，如 D:\\code\\my-app"><button type="button" class="outline" id="ar-browse">浏览…</button></div>
+        <div id="ar-browser"></div>
+        <p class="ar-help">同一个工作区下的所有对话都在这个目录里运行：新会话直接继承，切换后还没开始的会话也会跟过去；已经在运行的对话保持各自的目录不受影响。</p>
+      </section>
+      <p id="ar-form-error" class="ar-error" role="alert"></p>`;
+    const repo = $('#ar-repo');
+    const save = async value => {
+      $('#ar-form-error').textContent = '';
+      try {
+        const r = await api.request('/api/workspace', { method: 'PATCH', body: JSON.stringify({ repo: value }) });
+        ws = { repo: r.repo }; notify('工作目录已更新'); await refresh();
+        if (panelKind === 'workspace') renderWorkspace();
+      } catch (err) { $('#ar-form-error').textContent = err.message; }
+    };
+    repo.onchange = () => save(repo.value.trim());
+    repo.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); repo.blur(); } };
+    const browse = async dir => {
+      const box = $('#ar-browser');
+      try {
+        const d = await api.request('/api/fs/dirs' + (dir ? `?path=${encodeURIComponent(dir)}` : ''));
+        const join = n => d.path.replace(/[\\/]$/, '') + (d.path.includes('\\') ? '\\' : '/') + n;
+        box.innerHTML = `<div class="ar-card" style="margin-top:8px">
+          <div class="ar-row" style="cursor:default;gap:6px">${d.parent ? `<button type="button" class="outline" data-dir="${esc(d.parent)}" title="上一级">↑</button>` : ''}<span class="ar-mono" style="flex:1" title="${esc(d.path)}">${esc(d.path)}</span><button type="button" class="primary" data-pick="${esc(d.path)}">选择</button></div>
+          <div class="ar-row" style="cursor:default;gap:4px;flex-wrap:wrap">${[d.home, ...d.roots].map(p => `<button type="button" class="outline" data-dir="${esc(p)}" style="padding:2px 8px;font-size:12px">${p === d.home ? '主目录' : esc(p)}</button>`).join('')}</div>
+          <div style="max-height:220px;overflow:auto">${d.dirs.map(n => `<button type="button" class="ar-row" data-dir="${esc(join(n))}">📁 ${esc(n)}</button>`).join('') || '<p class="ar-help" style="padding:0 12px 10px">没有子目录</p>'}</div></div>`;
+      } catch (err) { box.innerHTML = `<p class="ar-error">${esc(err.message)}</p>`; }
+    };
+    $('#ar-browse').onclick = () => $('#ar-browser').innerHTML ? ($('#ar-browser').innerHTML = '') : browse(repo.value.trim());
+    $('#ar-browser').onclick = e => {
+      const b = e.target.closest('[data-dir],[data-pick]'); if (!b) return;
+      if (b.dataset.pick) { repo.value = b.dataset.pick; $('#ar-browser').innerHTML = ''; save(b.dataset.pick); }
+      else browse(b.dataset.dir);
+    };
+  }
+
+  /* ---------- 运行设置 ---------- */
+  function mainRows(current, chats) {
+    const row = (a, sub) => {
+      const ok = mainReady(a);
+      return `<button type="button" class="ar-row${a === current ? ' on' : ''}" data-main="${esc(a)}" ${ok ? '' : 'disabled'}>${avatar(a)}<span class="ar-row-text"><span class="ar-row-main">${esc(agentName(a))}</span><span class="ar-row-sub">${esc(sub(ok))}</span></span>${a === current ? '<span class="ar-check">✓</span>' : ''}</button>`;
+    };
+    return `<div class="ar-card">${KEYS.map(a => row(a, ok => ok ? AGENTS[a].mode : '未安装 · 见环境检查')).join('')}</div>
+      ${chats.length ? `<p class="ar-help" style="margin:12px 0 6px">对话模型：由 Codex 驱动，使用 Codex 的全部工具</p><div class="ar-card">${chats.map(a => row(a, ok => ok ? llm()[a].model || '' : (llm()[a].codex ? `未配置 API Key${llm()[a].apiKeyEnv ? `（${llm()[a].apiKeyEnv}）` : ''}` : '需要安装 Codex CLI'))).join('')}</div>` : ''}`;
+  }
+  function modelField(k, catalog, current) {
+    const c = catalog[k] || {}, val = current[k] || '', def = c.default ? `默认（${c.default}）` : '客户端默认';
+    if (c.options?.length && !c.custom) {
+      const labels = c.labels || {}, efforts = c.efforts || {};
+      // opencode 的思考强度编码在模型串里（model@variant）；zcode 的强度是独立下拉，不生成组合项
+      const opts = k === 'opencode' ? c.options.flatMap(o => [o, ...(efforts[o] || []).map(e => `${o}@${e}`)]) : c.options;
+      const label = o => { const [m, e] = o.split('@'); return labels[m] ? `${labels[m]}${e ? ' · ' + e : ''}` : o; };
+      if (opts.length > 60) return `<input list="ar-dl-${k}" data-model="${k}" value="${esc(val)}" placeholder="${esc(def)}（可输入筛选）"><datalist id="ar-dl-${k}">${opts.map(o => `<option value="${esc(o)}">${esc(labels[o.split('@')[0]] || '')}</option>`).join('')}</datalist>`;
+      return `<select data-model="${k}"><option value="">${esc(def)}</option>${opts.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(label(o))}</option>`).join('')}</select>`;
+    }
+    return `<input data-model="${k}" value="${esc(val)}" placeholder="${esc(def)}">`;
+  }
+  // 思考强度（目前仅 ZCode：档位随模型而定，来自 runtime 注册表）——模型换档位集变化时由 syncEfforts 重建。
+  // opencode 的档位走模型串里的 @variant 组合项，不在这里渲染
+  const LEVELS = { disabled: '关闭', enabled: '开启', none: '无', minimal: '极低', low: '低', medium: '中', high: '高', xhigh: '超高', max: '最大' };
+  function effortField(k, catalog, current, modelSel, kind) {
+    if (!['zcode', 'zcode-oss'].includes(kind || k)) return '';
+    const c = catalog[k] || {}, values = (c.efforts || {})[modelSel || c.default || ''];
+    if (!values?.length) return '';
+    const cur = current[k] || '';
+    return `<select data-effort="${esc(k)}" style="max-width:120px"><option value="" ${cur ? '' : 'selected'}>思考 · 默认</option>${values.map(v => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>思考 · ${esc(LEVELS[v] || v)}</option>`).join('')}</select>`;
+  }
+  const readEfforts = () => Object.fromEntries([...pane.querySelectorAll('[data-effort]')].map(el => [el.dataset.effort, el.value.trim()]));
+  const syncEfforts = (root, catalog, mainKind) => root.querySelectorAll('[data-effort]').forEach(sel => {
+    const k = sel.dataset.effort, c = k === 'main' ? (catalog[mainKind] || {}) : (catalog[k] || {});
+    const modelEl = root.querySelector(`[data-model="${k}"]`);
+    const values = (c.efforts || {})[modelEl?.value.trim() || c.default || ''] || [];
+    sel.innerHTML = `<option value="">思考 · 默认</option>${values.map(v => `<option value="${esc(v)}" ${v === sel.value ? 'selected' : ''}>思考 · ${esc(LEVELS[v] || v)}</option>`).join('')}`;
+  });
+  const readModels = () => Object.fromEntries([...pane.querySelectorAll('[data-model]')].map(el => [el.dataset.model, el.value.trim()]));
+  const mcpText = servers => Object.keys(servers || {}).length ? JSON.stringify(servers, null, 2) : '';
+  const MCP_PLACEHOLDER = '{"fetch": {"command": "npx", "args": ["-y", "mcp-server-fetch"]}, "docs": {"url": "https://example.com/mcp"}}';
+  // MCP 文本框 → 对象：空文本 = 清空；非法 JSON 抛错（由调用方显示，不落盘）
+  const readMcp = () => {
+    const el = pane.querySelector('#ar-mcp');
+    if (!el || !el.value.trim()) return {};
+    let v; try { v = JSON.parse(el.value); } catch (e) { throw new Error(`MCP 配置不是合法 JSON：${e.message}`); }
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('MCP 配置需要 { 名字: 服务器 } 对象');
+    return v;
+  };
+  const mcpSection = (s, sub) => `<section class="ar-section"><h3>对话 MCP <span style="font-weight:400">· ${sub}</span></h3>
+        <div class="ar-card"><textarea id="ar-mcp" rows="6" style="width:100%;font-family:monospace;font-size:12.5px" placeholder="${esc(MCP_PLACEHOLDER)}">${esc(mcpText(s.mcpServers))}</textarea><p class="ar-help">JSON：本地进程用 command/args/env/cwd，远程服务用 url/headers。各成员 CLI 都加载这些服务器，且只加载本对话的 —— 对话之间互相隔离（ enabled:false 可临时停用某一个）。</p></div>
+      </section>`;
+
+  async function renderSettings() {
+    if (!ctx) { pane.innerHTML = '<p class="ar-help">先新建或选择一个会话。</p><div class="ar-footer"><button class="primary" id="ar-create-settings">新会话</button></div>'; $('#ar-create-settings').onclick = createSession; return; }
+    const saved = ctx;
+    const [catalog] = await Promise.all([api.request('/api/models'), loadHealth()]);
+    if (saved.sessionId !== ctx?.sessionId || panelKind !== 'settings') return;
+    const s = { main: 'claude', agents: [], worktree: false, collab: 'manager', models: {}, efforts: {}, ...ctx.settings };
+    const chats = Object.keys(llm());
+    return ctx.capabilities.configure ? renderDraft(s, catalog, chats) : renderLocked(s, catalog, chats);
+  }
+
+  // 运行开始前：所有改动即时保存到会话，发送第一条消息时生效（工作目录属于工作区，在「工作区」面板里改）
+  function renderDraft(s, catalog, chats) {
+    const saved = ctx;
+    pane.innerHTML = `
+      <section class="ar-section"><h3>主代理 <span style="font-weight:400">· 和你对话，决定自己做还是派给子代理</span></h3>${mainRows(s.main, chats)}
+        ${AGENTS[s.main] ? `<div class="ar-card" style="margin-top:8px"><label class="ar-row" style="cursor:default">${avatar(s.main)}<span class="ar-row-text"><span class="ar-row-main">${AGENTS[s.main].name} 模型</span><span class="ar-row-sub">只对主代理生效，子代理用下面各自的模型</span></span>${modelField('main', { main: catalog[s.main] || {} }, s.models || {})}${effortField('main', { main: { default: catalog[s.main]?.default, efforts: catalog[s.main]?.efforts } }, s.efforts || {}, s.models?.main, s.main)}</label></div>` : (llm()[s.main] ? '<p class="ar-help" style="margin-top:8px">对话模型的模型在「环境检查」的模型配置里设置。</p>' : '')}
+      </section>
+      <section class="ar-section"><h3>子代理 <span style="font-weight:400">· 主代理可以把任务派给它们并行执行</span></h3>
+        <div class="ar-card">${KEYS.map(a => `<label class="ar-row${health[a] ? '' : ' disabled'}"><input type="checkbox" name="agents" value="${a}" ${s.agents.includes(a) ? 'checked' : ''} ${health[a] ? '' : 'disabled'}>${avatar(a)}<span class="ar-row-text"><span class="ar-row-main">${AGENTS[a].name}</span><span class="ar-row-sub">${health[a] ? esc(s.models?.[a] || health.models?.[a] || '客户端默认') : '未安装 · 见环境检查'}</span></span></label>`).join('')}${chats.map(a => `<label class="ar-row${mainReady(a) ? '' : ' disabled'}"><input type="checkbox" name="agents" value="${esc(a)}" ${s.agents.includes(a) ? 'checked' : ''} ${mainReady(a) ? '' : 'disabled'}>${avatar(a)}<span class="ar-row-text"><span class="ar-row-main">${esc(agentName(a))}</span><span class="ar-row-sub">对话模型 · 经 Codex 运行</span></span></label>`).join('')}</div>
+      </section>
+      <section class="ar-section"><h3>协作方式</h3>
+        <div class="ar-seg"><button type="button" data-collab="manager" class="${s.collab !== 'peer' ? 'on' : ''}">管理者模式<small>主代理拆解派活，子代理执行并汇报（默认）</small></button><button type="button" data-collab="peer" class="${s.collab === 'peer' ? 'on' : ''}">平等互联<small>所有成员平权：人人可派活、续派、取消自己创建的任务</small></button></div>
+      </section>
+      <section class="ar-section"><h3>执行方式</h3>
+        <div class="ar-seg"><button type="button" data-wt="false" class="${s.worktree ? '' : 'on'}">直通模式<small>子代理直接在工作目录里并行修改，最快</small></button><button type="button" data-wt="true" class="${s.worktree ? 'on' : ''}">隔离模式<small>每个任务一个 git worktree，完成后合并</small></button></div>
+      </section>
+      <section class="ar-section"><h3>子代理模型 <span style="font-weight:400">· 对相应类型的子代理生效，留空用各 CLI 的默认模型；ZCode 可另选思考强度</span></h3>
+        <div class="ar-card">${KEYS.map(k => `<label class="ar-row" style="cursor:default">${avatar(k)}<span class="ar-row-text"><span class="ar-row-main">${AGENTS[k].name}</span></span>${modelField(k, catalog, s.models || {})}${effortField(k, catalog, s.efforts || {}, s.models?.[k])}</label>`).join('')}</div>
+      </section>
+      ${mcpSection(s, '发送第一条消息时带上，之后每个任务都用')}
+      <p id="ar-form-error" class="ar-error" role="alert"></p>
+      <p class="ar-note">设置会自动保存。在对话框里发送第一条消息，主代理就会开始工作。</p>`;
+    const save = async patch => {
+      Object.assign(s, patch); $('#ar-form-error').textContent = '';
+      try { await api.request(`/api/sessions/${encodeURIComponent(saved.sessionId)}/settings`, { method: 'PATCH', body: JSON.stringify({ agents: s.agents, main: s.main, worktree: s.worktree, collab: s.collab, models: s.models, efforts: s.efforts, mcpServers: s.mcpServers || {} }) }); await refresh(); }
+      catch (err) { $('#ar-form-error').textContent = err.message; }
+    };
+    pane.querySelectorAll('[data-main]').forEach(b => b.onclick = async () => { await save({ main: b.dataset.main }); renderSettings(); });
+    pane.querySelectorAll('[name=agents]').forEach(i => i.onchange = () => {
+      const agents = [...pane.querySelectorAll('[name=agents]:checked')].map(x => x.value);
+      if (!agents.length) { i.checked = true; return notify('至少需要一个子代理'); }
+      save({ agents });
+    });
+    pane.querySelectorAll('[data-wt]').forEach(b => b.onclick = () => { pane.querySelectorAll('[data-wt]').forEach(x => x.classList.toggle('on', x === b)); save({ worktree: b.dataset.wt === 'true' }); });
+    pane.querySelectorAll('[data-collab]').forEach(b => b.onclick = () => { pane.querySelectorAll('[data-collab]').forEach(x => x.classList.toggle('on', x === b)); save({ collab: b.dataset.collab }); });
+    pane.querySelectorAll('[data-model]').forEach(el => el.onchange = () => { syncEfforts(pane, catalog, s.main); save({ models: readModels(), efforts: readEfforts() }); });
+    pane.querySelectorAll('[data-effort]').forEach(el => el.onchange = () => save({ efforts: readEfforts() }));
+    pane.querySelector('#ar-mcp').onchange = () => { try { save({ mcpServers: readMcp() }); } catch (err) { $('#ar-form-error').textContent = err.message; } };
+  }
+
+  // 运行开始后：目录和成员锁定；主代理可以切换（接手之前的对话），模型可以改
+  function renderLocked(s, catalog, chats) {
+    const saved = ctx, running = saved.run?.status === 'running';
+    pane.innerHTML = `
+      <section class="ar-section"><h3>主代理 <span style="font-weight:400">· ${running ? '当前回合结束后切换，子代理任务不受影响' : '下一条消息起由新主代理接手'}</span></h3>${mainRows(s.main, chats)}
+        ${AGENTS[s.main] ? `<div class="ar-card" style="margin-top:8px"><label class="ar-row" style="cursor:default">${avatar(s.main)}<span class="ar-row-text"><span class="ar-row-main">${AGENTS[s.main].name} 模型</span><span class="ar-row-sub">${running ? '当前回合结束后生效，子代理用下面各自的模型' : '下一条消息起生效，子代理用下面各自的模型'}</span></span>${modelField('main', { main: catalog[s.main] || {} }, s.models || {})}${effortField('main', { main: { default: catalog[s.main]?.default, efforts: catalog[s.main]?.efforts } }, s.efforts || {}, s.models?.main, s.main)}</label></div>` : (llm()[s.main] ? '<p class="ar-help" style="margin-top:8px">对话模型的模型在「环境检查」的模型配置里设置。</p>' : '')}
+      </section>
+      <section class="ar-section"><h3>本次运行</h3><div class="ar-card">
+        <div class="ar-row" style="cursor:default"><span class="ar-row-text"><span class="ar-row-sub">工作目录</span><span class="ar-row-main" style="font-weight:400;overflow-wrap:anywhere">${esc(s.repo || '')}</span></span></div>
+        <div class="ar-row" style="cursor:default"><span class="ar-row-text"><span class="ar-row-sub">子代理</span><span class="ar-row-main" style="font-weight:400">${esc(s.agents.map(agentName).join('、'))}</span></span></div>
+        <div class="ar-row" style="cursor:default"><span class="ar-row-text"><span class="ar-row-sub">执行方式</span><span class="ar-row-main" style="font-weight:400">${s.worktree ? '隔离模式（git worktree）' : '直通模式'}</span></span></div>
+        <div class="ar-row" style="cursor:default"><span class="ar-row-text"><span class="ar-row-sub">协作方式</span><span class="ar-row-main" style="font-weight:400">${s.collab === 'peer' ? '平等互联（人人可派活）' : '管理者模式（主代理派活）'}</span></span>${saved.capabilities.models ? `<button type="button" class="outline" id="ar-collab" style="margin-left:auto;padding:2px 10px;font-size:12px">切换</button>` : ''}</div>
+      </div><p class="ar-help">目录和成员在运行开始后锁定；要换就新建一个会话。</p></section>
+      <section class="ar-section"><h3>子代理模型 <span style="font-weight:400">· 对相应类型的子代理生效，下一个任务开始时使用；ZCode 可另选思考强度</span></h3>
+        <div class="ar-card">${KEYS.map(k => `<label class="ar-row" style="cursor:default">${avatar(k)}<span class="ar-row-text"><span class="ar-row-main">${AGENTS[k].name}</span></span>${modelField(k, catalog, s.models || {})}${effortField(k, catalog, s.efforts || {}, s.models?.[k])}</label>`).join('')}</div>
+      </section>
+      ${mcpSection(s, '下一个任务/回合拉起 CLI 进程时生效')}
+      <p id="ar-form-error" class="ar-error" role="alert"></p>
+      <div class="ar-footer">${saved.thread !== 'manager' ? '<button type="button" class="outline" id="ar-back-manager">返回主代理</button>' : ''}${saved.capabilities.stop ? '<button type="button" class="danger" id="ar-stop">停止运行</button>' : ''}<span class="grow"></span><button type="button" class="outline" id="ar-save-mcp" ${saved.capabilities.mcp ? '' : 'disabled'}>保存 MCP</button><button type="button" class="primary" id="ar-save-models" ${saved.capabilities.models ? '' : 'disabled'}>保存模型</button></div>`;
+    pane.querySelectorAll('[data-main]').forEach(b => b.onclick = async () => {
+      if (b.dataset.main === s.main) return;
+      try {
+        const res = await api.request(`/api/runs/${encodeURIComponent(saved.runId)}/main`, { method: 'PATCH', body: JSON.stringify({ main: b.dataset.main }) });
+        notify(res.applied === 'after_turn' ? `将在当前回合结束后切换为 ${agentName(b.dataset.main)}，它会接手之前的对话` : `已切换为 ${agentName(b.dataset.main)}，发送消息后由它接手之前的对话`);
+        await refresh(); renderSettings();
+      } catch (err) { notify(err.message, true); }
+    });
+    pane.querySelectorAll('[data-model]').forEach(el => el.onchange = () => syncEfforts(pane, catalog, s.main));
+    $('#ar-save-models').onclick = async e => {
+      e.target.disabled = true; $('#ar-form-error').textContent = '';
+      try { const r = await api.request(`/api/runs/${saved.runId}/models`, { method: 'PATCH', body: JSON.stringify({ models: readModels(), efforts: readEfforts() }) }); notify(r.message || '已保存'); await refresh(); }
+      catch (err) { $('#ar-form-error').textContent = err.message; } finally { e.target.disabled = false; }
+    };
+    $('#ar-save-mcp').onclick = async e => {
+      e.target.disabled = true; $('#ar-form-error').textContent = '';
+      try {
+        const r = await api.request(`/api/runs/${encodeURIComponent(saved.runId)}/mcp`, { method: 'PATCH', body: JSON.stringify({ mcpServers: readMcp() }) });
+        notify(r.message || '已保存'); await refresh(); renderSettings();
+      } catch (err) { $('#ar-form-error').textContent = err.message; } finally { e.target.disabled = false; }
+    };
+    if ($('#ar-collab')) $('#ar-collab').onclick = async e => {
+      const next = s.collab === 'peer' ? 'manager' : 'peer';
+      if (!confirm(next === 'peer' ? '切换为平等互联？所有成员立即可以互相派活。' : '切换回管理者模式？之后只有主代理可以派活。')) return;
+      e.target.disabled = true;
+      try {
+        const r = await api.request(`/api/runs/${encodeURIComponent(saved.runId)}/collab`, { method: 'PATCH', body: JSON.stringify({ collab: next }) });
+        notify(r.applied === 'immediately' ? `已切换为${next === 'peer' ? '平等互联' : '管理者'}模式，立即生效` : '已保存，发送下一条消息时生效');
+        await refresh(); renderSettings();
+      } catch (err) { notify(err.message, true); } finally { e.target.disabled = false; }
+    };
+    if ($('#ar-back-manager')) $('#ar-back-manager').onclick = () => { api.open(saved.managerSessionId); close(); };
+    if ($('#ar-stop')) $('#ar-stop').onclick = async e => {
+      if (!confirm('停止此运行？其他并发运行不受影响。')) return;
+      e.target.disabled = true;
+      try { await api.request(`/api/runs/${saved.runId}/stop`, { method: 'POST' }); notify('已请求停止'); await refresh(); } catch (err) { notify(err.message, true); e.target.disabled = false; }
+    };
+  }
+
+  async function createSession() { try {
+    if (api.newSession) await api.newSession();
+    else {
+      const created = await api.request('/dsh-api/session/create', { method: 'POST', body: JSON.stringify({}) });
+      if (!created.ok) throw new Error(created.error?.message || '无法创建会话');
+      api.select(created.value.sessionId);
+      const original = [...document.querySelectorAll('#root button')].find(b => /新建会话/.test(b.textContent || b.getAttribute('aria-label') || ''));
+      original?.click();
+    }
+    await refresh(true); panelKind = null; await show('settings');
+  } catch (e) { notify(e.message, true); } }
+  $('#ar-close').onclick = close;
+  bar.querySelectorAll('[data-panel]').forEach(b => b.onclick = () => show(b.dataset.panel).catch(e => notify(e.message, true)));
+  window.addEventListener('ar:session', () => refresh(true)); window.addEventListener('ar:refresh', () => refresh());
+  window.addEventListener('message', e => { if (e.origin !== location.origin || e.source !== frame?.contentWindow) return; if (e.data?.type === 'ar:close') close(); });
+  document.addEventListener('keydown', e => {
+    if (panel.hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+  });
+  const hideLabels = ['好的回答','有问题的回答','在新对话中分支','添加工作区','添加文件或调用指令','反馈','正在加载模型'];
+  const hideExact = ['插件', '自动化任务'];
+  // dsh 侧栏的品牌区换成 Agent Router
+  const rebrand = () => {
+    const mark = document.querySelector('#root [data-slot="sidebar.brand.mark"]');
+    if (mark && !mark.querySelector('.ar-mark')) mark.innerHTML = MARK;
+    for (const el of document.querySelectorAll('#root [class*="_localBuildTitle"]')) if (el.textContent !== 'Agent Router') el.textContent = 'Agent Router';
+    for (const el of document.querySelectorAll('#root [class*="_localBuildBrand"] > :not([class*="_localBuildTitle"])')) el.dataset.arHidden = '';
+    if (document.title.includes('DSH 本地构建')) document.title = document.title === 'DSH 本地构建' ? 'Agent Router' : document.title.replace(/\s*—\s*DSH 本地构建/, ' — Agent Router');
+    // 空会话的欢迎区：换标题，去掉 dsh 的标志；工作区按钮改成显示工作目录，点击打开工作区面板
+    const fish = document.querySelector('#root [data-slot="conversation.hero.brand.mark"]');
+    if (fish?.parentElement && !fish.parentElement.dataset.arHidden) fish.parentElement.dataset.arHidden = '';
+    const title = document.querySelector('#root [class*="_titleGroup"]');
+    if (title) {
+      title.closest('[class*="_headline"]')?.setAttribute('data-ar-hero', '');
+      const [text, ...rest] = title.children;
+      if (text && text.textContent !== '有什么可以帮你？') text.textContent = '有什么可以帮你？';
+      for (const el of rest) if (!el.dataset.arHidden) el.dataset.arHidden = '';
+    }
+    const chip = document.querySelector('#root [class*="_heroWorkspaceRow"] [aria-label="选择工作区"]');
+    const label = chip?.querySelector('[class*="_workspaceLabel"]');
+    if (label) {
+      const repo = ws?.repo || ctx?.settings?.repo || '', name = repo ? repo.replace(/[\\/]+$/, '').split(/[\\/]/).pop() : '选择工作目录';
+      if (label.textContent !== name) label.textContent = name;
+      if (chip.title !== repo) chip.title = repo;
+      chip.dataset.arChip = '';
+    }
+  };
+  document.addEventListener('click', e => {
+    if (!e.target.closest?.('[data-ar-chip]')) return;
+    e.preventDefault(); e.stopPropagation();
+    show('workspace').catch(err => notify(err.message, true));
+  }, true);
+  // Router 注入的 [事件] / [信箱] 在 dsh 里是用户消息：改成左对齐的提示条，长内容折叠，点击展开
+  const markNotices = () => {
+    for (const item of document.querySelectorAll('#root [data-chat-flow-kind="user"]')) {
+      const bubble = item.querySelector('[class*="_bubble"]');
+      // 虚拟列表会复用节点：按节点 key 判断是否已检查
+      if (!bubble || item.dataset.arChecked === item.dataset.chatNodeKey) continue;
+      item.dataset.arChecked = item.dataset.chatNodeKey || '';
+      const tag = (bubble.textContent || '').match(/^\s*\[(事件|信箱)\]/)?.[1];
+      if (tag) item.dataset.arNotice = tag; else delete item.dataset.arNotice;
+    }
+  };
+  document.addEventListener('click', e => {
+    const bubble = e.target.closest?.('[data-ar-notice] [class*="_bubble"]');
+    if (bubble && !getSelection()?.toString()) bubble.toggleAttribute('data-ar-open');
+  });
+  const sweep = () => {
+    rebrand(); markNotices();
+    for (const el of document.querySelectorAll('#root button,#root [role="menuitem"]')) {
+      const label = (el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').trim();
+      if (hideLabels.some(t => label.includes(t)) || hideExact.includes(label)) el.dataset.arHidden = '';
+    }
+  };
+  let scheduled = false;
+  const mo = new MutationObserver(() => { if (scheduled) return; scheduled = true; requestAnimationFrame(() => { scheduled = false; sweep(); }); });
+  mo.observe($('#root'), { childList:true, subtree:true });
+  // rAF 在标签页被节流/不可见时不会触发,定时兜底保证裁剪始终生效
+  sweep();
+  setInterval(sweep, 1500);
+  setInterval(() => { if (!document.hidden) refresh(); }, 8000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  loadWorkspace().then(() => loadHealth()).then(drawContext).catch(() => {});
+  refresh();
+})();

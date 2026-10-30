@@ -63,3 +63,16 @@ worktrees/
 __pycache__/
 *.pyc
 native/system/test/bin/
+
+# Agent Router runtime data and local machine config (integrations/agent-router/README.md)
+/integrations/agent-router/data/
+/integrations/agent-router/dsh-web/
+/integrations/agent-router/deepseek-harness/
+/integrations/agent-router/router.config.json
+/integrations/agent-router/.zcode/
+/integrations/agent-router/.agents/
+/integrations/agent-router/.tmp-capture/
+/integrations/agent-router/node_modules/
+# The unanchored lib/ rule above exists for build outputs; the router's lib/ is
+# first-party source that ships in the commit.
+!/integrations/agent-router/lib/
