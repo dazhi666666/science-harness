@@ -1,0 +1,8 @@
+# Mount the Agent Router console inside a dsh profile.
+# Usage: pnpm dsh --profile web --patch integrations/agent-router/harness/agent-router.patch.yml
+# The live-stream port is always port + 1; PORT below only selects the main console.
+- insert:
+    - id: agent-router-console
+      name: './plugin.ts'
+      config:
+        port: !!js Number(process.env.AGENT_ROUTER_PORT || 2288)

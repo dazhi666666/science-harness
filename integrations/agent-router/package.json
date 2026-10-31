@@ -11,6 +11,9 @@
   "scripts": {
     "router": "node router.mjs",
     "start": "node web/server.mjs",
-    "test": "node --test core/test.mjs web/test.mjs chat-agent/test.mjs"
+    "test": "node --test core/test.mjs web/test.mjs chat-agent/test.mjs lib/dsh.test.mjs",
+    "sync": "node ../../scripts/sync-agent-router.mjs",
+    "build:dsh-web": "node harness/build-dsh-web.mjs",
+    "probe": "vitest run --config harness/vitest.config.ts"
   }
 }
