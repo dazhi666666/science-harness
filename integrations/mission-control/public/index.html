@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Mission Control · science-harness</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <canvas id="cosmos" aria-hidden="true"></canvas>
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="grid-floor" aria-hidden="true"></div>
+    <div class="cursor-glow" aria-hidden="true"></div>
+
+    <div class="app">
+      <aside class="rail">
+        <a class="logo" href="#" data-go="overview" aria-label="Mission Control 总览">
+          <span class="orb"><i></i><i></i></span>
+          <span class="logo-text"><b>MISSION</b><span>CONTROL</span></span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <span class="nav-indicator" aria-hidden="true"></span>
+          <button class="nav-item" data-view="overview"><span data-icon="radar"></span>总览<kbd>1</kbd></button>
+          <div class="nav-group">科学执行 <i class="link-dot" data-link="science"></i></div>
+          <button class="nav-item" data-view="science"><span data-icon="flask"></span>实验运行<kbd>2</kbd></button>
+          <button class="nav-item" data-view="providers"><span data-icon="layers"></span>执行 Provider<kbd>3</kbd></button>
+          <button class="nav-item" data-view="artifacts"><span data-icon="file"></span>研究产物<kbd>4</kbd></button>
+          <div class="nav-group">多智能体 <i class="link-dot" data-link="router"></i></div>
+          <button class="nav-item" data-view="agents"><span data-icon="nodes"></span>编排运行<kbd>5</kbd></button>
+          <button class="nav-item" data-view="fleet"><span data-icon="cpu"></span>成员舰队<kbd>6</kbd></button>
+        </nav>
+        <div class="rail-section">
+          <span>科学项目</span
+          ><button class="icon-btn" id="add-project" title="创建项目" aria-label="创建项目">+</button>
+        </div>
+        <div id="project-list" class="project-list"></div>
+        <div class="rail-foot">
+          <div class="uplink"><span class="pulse"></span><span id="uplink-text">建立链路…</span></div>
+          <small>science-harness · Fusion UI</small>
+        </div>
+      </aside>
+
+      <div class="main">
+        <header class="top">
+          <button class="icon-btn menu" id="menu" aria-label="菜单"><span data-icon="menu"></span></button>
+          <div class="crumbs"><span id="crumb-a">Mission Control</span><i>/</i><b id="crumb-b">总览</b></div>
+          <button class="palette-pill" id="palette-open"
+            ><span data-icon="search"></span><span class="pp-text">搜索或跳转…</span><kbd>Ctrl K</kbd></button
+          >
+          <div class="top-right">
+            <span id="clock" class="clock">--:--:--</span>
+            <button class="icon-btn" id="refresh" title="刷新" aria-label="刷新"><span data-icon="refresh"></span></button>
+            <button class="btn primary glow" id="primary-action"><span data-icon="plus"></span><span>新建</span></button>
+          </div>
+        </header>
+        <main id="stage" tabindex="-1"></main>
+      </div>
+    </div>
+
+    <!-- 运行详情抽屉（科学执行） -->
+    <aside id="drawer" class="drawer" aria-hidden="true">
+      <div class="drawer-head">
+        <div><div class="eyebrow">EXECUTION RECORD</div><h2 id="drawer-title">运行详情</h2></div>
+        <button class="icon-btn" data-close="drawer" aria-label="关闭">×</button>
+      </div>
+      <div id="drawer-body" class="drawer-body"></div>
+    </aside>
+    <div id="scrim" class="scrim"></div>
+
+    <dialog id="dlg-project" class="dlg">
+      <form id="form-project">
+        <div class="dlg-head"><div><div class="eyebrow">WORKSPACE</div><h2>创建科学项目</h2></div><button type="button" class="icon-btn" data-dismiss>×</button></div>
+        <p class="muted">只能创建管理配置中允许的项目。</p>
+        <label>项目<select id="project-name" required></select></label>
+        <label>预算上限<input id="project-budget" type="number" min="0" step="any" value="10000" required /></label>
+        <div class="form-error" role="alert"></div>
+        <div class="dlg-actions"><button type="button" class="btn ghost" data-dismiss>取消</button><button class="btn primary" type="submit">创建项目</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-science-run" class="dlg">
+      <form id="form-science-run">
+        <div class="dlg-head"><div><div class="eyebrow">EXECUTION</div><h2>发起实验运行</h2></div><button type="button" class="icon-btn" data-dismiss>×</button></div>
+        <label>Provider<select id="run-provider" required></select></label>
+        <label>请求键 Request key<input id="request-key" required maxlength="128" autocomplete="off" /></label>
+        <p class="field-note">重试同一请求时保持相同的键（幂等）。</p>
+        <label>输入 JSON<textarea id="run-input" spellcheck="false" rows="7" required></textarea></label>
+        <details><summary>查看 Provider 输入 Schema</summary><pre id="input-schema"></pre></details>
+        <div class="form-error" role="alert"></div>
+        <div class="dlg-actions"><button type="button" class="btn ghost" data-dismiss>取消</button><button class="btn primary" type="submit">提交运行 ↗</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-agent-run" class="dlg wide">
+      <form id="form-agent-run">
+        <div class="dlg-head"><div><div class="eyebrow">ORCHESTRATION</div><h2>启动多智能体运行</h2></div><button type="button" class="icon-btn" data-dismiss>×</button></div>
+        <label>总目标<textarea id="ag-goal" rows="4" placeholder="例：给 todo-cli 添加优先级功能、补测试、更新 README"></textarea></label>
+        <label>目标仓库 / 工作目录<input id="ag-repo" type="text" placeholder="默认 demo/todo-cli（git 仓库或普通目录均可）" /></label>
+        <div class="field"><span>派发模式</span>
+          <div class="segmented" id="ag-mode">
+            <button type="button" data-v="direct" class="on">直通 · 并行在主目录</button>
+            <button type="button" data-v="worktree">worktree 隔离 · 自动合并</button>
+          </div>
+        </div>
+        <div class="field"><span>执行成员</span><div class="member-chips" id="ag-agents"></div></div>
+        <label>主代理<select id="ag-main"></select></label>
+        <div class="form-error" role="alert"></div>
+        <div class="dlg-actions"><button type="button" class="btn ghost" data-dismiss>取消</button><button class="btn primary glow" type="submit">▶ 启动运行</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-artifact" class="dlg wide">
+      <div class="dlg-head"><div><div class="eyebrow">VERIFIED ARTIFACT</div><h2 id="artifact-title">产物预览</h2></div><button type="button" class="icon-btn" data-dismiss>×</button></div>
+      <pre id="artifact-content" class="artifact-preview"></pre>
+    </dialog>
+
+    <dialog id="dlg-logs" class="dlg huge">
+      <div class="dlg-head"><div><div class="eyebrow">THREADS &amp; LOGS</div><h2>会话线程 <span id="log-title" class="muted"></span></h2></div><button type="button" class="icon-btn" data-dismiss>×</button></div>
+      <div class="logs-body">
+        <div id="log-list" class="log-list"></div>
+        <div id="log-content" class="log-content">选择左侧文件查看</div>
+      </div>
+    </dialog>
+
+    <div id="palette" class="palette" hidden>
+      <div class="palette-box" role="dialog" aria-label="命令面板">
+        <div class="palette-input"><span data-icon="search"></span><input id="palette-q" placeholder="输入命令、视图或运行 ID…" autocomplete="off" /></div>
+        <div id="palette-list" class="palette-list" role="listbox"></div>
+        <div class="palette-foot"><span><kbd>↑↓</kbd> 选择</span><span><kbd>Enter</kbd> 执行</span><span><kbd>Esc</kbd> 关闭</span></div>
+      </div>
+    </div>
+
+    <div id="lock" class="lock" hidden>
+      <div class="lock-box">
+        <span class="orb big"><i></i><i></i></span>
+        <h2>需要启动链接</h2>
+        <p>请打开 dsh 启动时打印的 <code>Mission Control: http://127.0.0.1:…/#token</code> 链接，或在下方粘贴令牌。</p>
+        <form id="lock-form"><input id="lock-token" placeholder="粘贴令牌" autocomplete="off" /><button class="btn primary">连接</button></form>
+      </div>
+    </div>
+
+    <div id="toasts" class="toasts" role="status"></div>
+    <script type="module" src="/fx.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

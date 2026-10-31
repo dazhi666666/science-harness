@@ -1,0 +1,9 @@
+{
+  "name": "mission-control",
+  "private": true,
+  "type": "module",
+  "description": "One loopback page fusing the AI4Science dashboard and the Agent Router console; mounted only through a dsh profile patch",
+  "scripts": {
+    "probe": "vitest run --config vitest.config.ts"
+  }
+}

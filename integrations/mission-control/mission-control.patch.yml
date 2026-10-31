@@ -1,0 +1,11 @@
+# Mount Mission Control (AI4Science dashboard + Agent Router console, fused) inside a dsh profile.
+# Usage: pnpm dsh --profile web --patch integrations/mission-control/mission-control.patch.yml
+# The launch link (with its one-run token) is printed as "Mission Control: http://127.0.0.1:2300/#…".
+- insert:
+    - id: mission-control
+      name: './plugin.ts'
+      config:
+        port: !!js Number(process.env.MISSION_CONTROL_PORT || 2300)
+        # Empty = bundled synthetic example (integrations/ai4science/platform/examples/local.config.json); "off" disables.
+        scienceConfig: !!js process.env.SCIENCE_CONFIG || ''
+        routerDataDir: !!js process.env.AGENT_ROUTER_DATA_DIR || ''
