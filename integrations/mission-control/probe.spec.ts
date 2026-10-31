@@ -47,7 +47,7 @@ it('serves the fused page, gates APIs on the launch token, and proxies both upst
   const page = await fetch(`${base}/`)
   expect(page.status).toBe(200)
   expect(page.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
-  expect(await page.text()).toContain('Mission Control')
+  expect(await page.text()).toContain('任务控制中心')
 
   expect((await fetch(`${base}/mc/status`)).status).toBe(401)
   expect((await fetch(`${base}/mc/status`, { headers: { Origin: 'http://evil.test' } })).status).toBe(403)

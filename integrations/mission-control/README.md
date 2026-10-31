@@ -23,7 +23,7 @@ Either side may fail to open; the page then shows it offline instead of refusing
 
 ## Views
 
-Overview (KPIs, fused constellation, unified timeline, budget ring) · Experiments · Providers · Artifacts · Orchestration runs (kanban, mailbox, live SSE console, interject, threads/logs) · Fleet. `Ctrl K` opens the command palette; `1`–`6` switch views. Motion honours `prefers-reduced-motion`.
+Overview (KPIs, fused constellation, unified timeline, budget ring) · Experiments · Providers · Artifacts · Orchestration runs (kanban, mailbox, live SSE console, interject, threads/logs) · Fleet. `Ctrl K` opens the command palette; `1`–`6` switch views. The UI defaults to Chinese; the 中文/EN button in the top bar switches language (remembered per browser). Strings live in `public/i18n.js` — Chinese is the source text, English a dictionary keyed by it. The light theme is the default; the moon/sun button switches to a dark instrument-panel theme (graphite, amber signal colour, fine grid, radar sweep) without reloading, also remembered per browser. Running work animates in both themes — flowing links in the constellation, a beam under the top bar, scan lines on in-progress tasks, a LIVE console. Motion honours `prefers-reduced-motion`.
 
 ## Probe
 
