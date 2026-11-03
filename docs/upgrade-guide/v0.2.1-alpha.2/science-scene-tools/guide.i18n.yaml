@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-alpha.2/science-scene-tools/guide.md
+/:
+  en: 35f42cb7df82a214
+  zh: 31fa119619731142
+/structured-first-loop-scene-tools:
+  en: 87163e9ee1bcbb89
+  zh: 33c1e4a30c157092
+/structured-first-loop-scene-tools/change:
+  en: 93081b434c926944
+  zh: 0d4d1b8925911839
+/structured-first-loop-scene-tools/migration:
+  en: 2203b7ad8d1475c0
+  zh: 1aef7b915f8cbe5b

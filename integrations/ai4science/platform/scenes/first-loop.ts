@@ -154,28 +154,39 @@ export class FirstLoopScenario {
       !runs.some((r) => r.phase === 'followup' && this.engine.get(c, r.operationId).state === 'succeeded')
     )
       throw new Error('Scenario report requires both initial runs and an executed followup')
-    if (!input.sources.length) throw new Error('Report requires source artifacts')
-    // Actual links target the generic artifact files next to this report. The platform only owns source identities/hashes.
-    for (const source of input.sources) {
-      const { artifact } = this.artifacts.read(c, source)
-      const path = relative(
-        resolve(this.engine.directory, 'project-artifacts'),
-        resolve(this.engine.directory, artifact.path),
-      )
-      if (!input.markdown.includes(`](${path})`))
-        throw new Error(
-          'Scenario report must link each declared source artifact using its relative file path',
-        )
+    const operations = this.engine.list(c)
+    if (input.sources.some(id => operations.some(op => op.id === id)))
+      throw new Error('source_ids accepts artifact IDs, not operation IDs. Omit source_ids and link the actual artifacts in markdown.')
+    let markdown = input.markdown
+    const sources = new Set<string>()
+    const candidates = [...this.artifacts.list(c), ...operations.flatMap(op => op.artifacts)]
+    const paths = new Set(candidates.flatMap(artifact => [artifact.path,
+      relative(resolve(this.engine.directory, 'project-artifacts'), resolve(this.engine.directory, artifact.path)),
+    ]))
+    for (const match of markdown.matchAll(/\]\(([^)]+)\)/g)) {
+      const target = match[1]!
+      if (/^(?:project-artifacts\/|(?:\.\.\/)?artifacts\/)/.test(target) && !paths.has(target))
+        throw new Error(`Unknown report artifact link; link an actual source artifact: ${target}`)
     }
-    return this.artifacts.publish(c, {
-      mediaType: 'text/markdown',
-      content: input.markdown,
-      sources: input.sources,
-    })
+    for (const artifact of candidates) {
+      const path = relative(resolve(this.engine.directory, 'project-artifacts'), resolve(this.engine.directory, artifact.path))
+      if (!markdown.includes(`](${path})`) && !markdown.includes(`](${artifact.path})`)) continue
+      this.artifacts.read(c, artifact.id)
+      markdown = markdown.replaceAll(`](${artifact.path})`, `](${path})`)
+      sources.add(artifact.id)
+    }
+    for (const source of input.sources) {
+      this.artifacts.read(c, source)
+      if (!sources.has(source)) throw new Error(`Declared report source needs a link to its relative file path: ${source}`)
+    }
+    if (!sources.size) throw new Error('Report requires links to actual source artifacts')
+    return this.artifacts.publish(c, { mediaType: 'text/markdown', content: markdown, sources: [...new Set([...input.sources, ...sources])] })
   }
 }
-/** Load platform once, then install the example's concrete scientific tools. */
-export async function apply(ctx: Context, config: Config) {
+/** Load platform and scientific tools for a composition; the Loader entry point is apply.
+ * @returns The mounted platform services.
+ */
+export async function mountScene(ctx: Context, config: Config) {
   const { instrumentProvider, ...base } = config
   const platform = await mountPlatform(ctx, base)
   const scenario = new FirstLoopScenario(platform.engine, platform.artifacts, instrumentProvider)
@@ -199,45 +210,45 @@ export async function apply(ctx: Context, config: Config) {
       }),
     )
   const id = { type: 'string', required: true } as const
-  register('scenario_submit', { request_json: id }, (a, c, role) =>
-    scenario.submit(c, role, JSON.parse(String(a.request_json))),
-  )
-  register('scenario_analyze', { request_json: id }, (a, c) =>
-    scenario.analyze(
-      c,
-      z
-        .object({
-          operationIds: z.array(z.string()),
-          method: z.enum(['condition-summary', 'condition-order-regression']),
-          rationale: z.string(),
-        })
-        .strict()
-        .parse(JSON.parse(String(a.request_json))),
-    ),
-  )
-  register('scenario_choose_followup', { request_json: id }, (a, c, role) => {
+  const conditions = {
+    type: 'array', required: true,
+    items: {
+      type: 'object', additionalProperties: false,
+      properties: { value: { type: 'number', required: true }, samples: { type: 'integer', required: true } },
+    },
+  } as const
+  register('scenario_submit', {
+    requestKey: id, phase: { type: 'string', enum: ['initial', 'followup'], required: true },
+    conditions, decisionId: { type: 'string' },
+  }, (a, c, role) => scenario.submit(c, role, submitSchema.parse(a)))
+  register('scenario_analyze', {
+    operationIds: { type: 'array', items: { type: 'string' }, required: true },
+    method: { type: 'string', enum: ['condition-summary', 'condition-order-regression'], required: true },
+    rationale: id,
+  }, (a, c) => scenario.analyze(c, z.object({
+    operationIds: z.array(z.string()),
+    method: z.enum(['condition-summary', 'condition-order-regression']),
+    rationale: z.string(),
+  }).strict().parse(a)))
+  register('scenario_choose_followup', {
+    branch: { type: 'string', enum: ['A', 'B'], required: true },
+    analysisIds: { type: 'array', items: { type: 'string' }, required: true },
+    conditions, rationale: id,
+  }, (a, c, role) => {
     if (role !== 'lead') throw new Error('Only scenario lead chooses followup')
-    return scenario.choose(
-      c,
-      z
-        .object({
-          branch: z.enum(['A', 'B']),
-          analysisIds: z.array(z.string()),
-          conditions: blocks,
-          rationale: z.string(),
-        })
-        .strict()
-        .parse(JSON.parse(String(a.request_json))),
-    )
+    return scenario.choose(c, z.object({
+      branch: z.enum(['A', 'B']), analysisIds: z.array(z.string()),
+      conditions: blocks, rationale: z.string(),
+    }).strict().parse(a))
   })
   register(
     'scenario_report',
-    { markdown: id, source_ids: { type: 'array', items: { type: 'string' }, required: true } },
+    { markdown: id, source_ids: { type: 'array', items: { type: 'string' }, description: 'Optional artifact IDs; omit to infer sources from links in markdown. Never use operation IDs.' } },
     (a, c, role) => {
       if (role !== 'lead') throw new Error('Only scenario lead publishes')
       return scenario.report(c, {
         markdown: String(a.markdown),
-        sources: z.array(z.string()).parse(a.source_ids),
+        sources: z.array(z.string()).parse(a.source_ids ?? []),
       })
     },
   )
@@ -246,4 +257,10 @@ export async function apply(ctx: Context, config: Config) {
     'scenario-configured',
     { name, provider: instrumentProvider } as Json,
   )
+  return platform
+}
+
+/** Cordis entry point returns no installation object; ownership remains in registered effects. */
+export async function apply(ctx: Context, config: Config): Promise<void> {
+  await mountScene(ctx, config)
 }

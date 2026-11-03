@@ -38,6 +38,25 @@ export function installOrganizationTools(ctx: Context, org: Organization) {
       }),
     )
   const id = { type: 'string', required: true } as const
+  const optionalString = { type: 'string' } as const
+  // Discovery identifies project members; native policy owns live ancestry and continuable peer sessions.
+  const resolveTarget = (a: Record<string, unknown>, e: ToolRunContext, idKey: string,
+    roleKey: string, scope: 'direct' | 'peer' | 'child' | 'peer-child') => {
+    const explicit = a[idKey], role = a[roleKey]
+    if ((typeof explicit === 'string') === (typeof role === 'string'))
+      throw new Error(`Provide exactly one of ${idKey} or ${roleKey}`)
+    if (typeof explicit === 'string') return SessionId(explicit)
+    const actor = org.assertActor(e.agent!)
+    const matches = org.discover(e.agent!).filter(p => {
+      if (p.role !== role) return false
+      if (scope === 'child') return p.parentId === actor.id
+      if (scope === 'peer-child') return p.depth === actor.depth + 1 && p.parentId !== actor.id
+      if (scope === 'direct') return p.id === actor.parentId || p.parentId === actor.id
+      return p.id !== actor.id && p.depth === actor.depth && p.parentId !== actor.parentId
+    })
+    if (matches.length !== 1) throw new Error(`Role ${String(role)} needs exactly one visible ${scope}; found ${matches.length}`)
+    return matches[0]!.id
+  }
   register(
     'org_create',
     'Create an allowed role as your real continuable child.',
@@ -52,16 +71,18 @@ export function installOrganizationTools(ctx: Context, org: Organization) {
   )
   register(
     'org_authorize',
-    'Authorize your exact child and one configured peer; its real parent must independently consent.',
-    { child_id: id, peer_child_id: id },
+    'Authorize your exact child and configured peer using IDs or unique visible roles (child_role, peer_role); both real parents must consent.',
+    { child_id: optionalString, peer_child_id: optionalString, child_role: optionalString, peer_role: optionalString },
     async (a, e) => {
+      const childId = resolveTarget(a, e, 'child_id', 'child_role', 'child')
+      const peerChildId = resolveTarget(a, e, 'peer_child_id', 'peer_role', 'peer-child')
       await org.authorize(
         e.agent!,
-        SessionId(String(a.child_id)),
-        SessionId(String(a.peer_child_id)),
+        childId,
+        peerChildId,
         e.signal,
       )
-      return { accepted: true }
+      return { accepted: true, childId, peerChildId }
     },
   )
   register(
@@ -75,9 +96,10 @@ export function installOrganizationTools(ctx: Context, org: Organization) {
   )
   register(
     'org_send_result',
-    'Send a persisted result reference, or one correlated reverse reply. Receipt means accepted, not completed.',
+    'Send a persisted result to target_id OR a unique visible peer target_role. Both parent consents remain required; receipt means accepted, not completed.',
     {
-      target_id: id,
+      target_id: optionalString,
+      target_role: optionalString,
       result_id: id,
       kind: { type: 'string', enum: ['reference', 'reply'], required: true },
       in_reply_to: { type: 'string' },
@@ -86,10 +108,12 @@ export function installOrganizationTools(ctx: Context, org: Organization) {
       if (a.kind === 'reply' && !a.in_reply_to) throw new Error('Reply requires in_reply_to')
       if (a.kind === 'reference' && a.in_reply_to !== undefined)
         throw new Error('Reference cannot carry in_reply_to')
+      const targetId = resolveTarget(a, e, 'target_id', 'target_role', 'peer')
       return {
+        targetId,
         messageId: await org.send(
           e.agent!,
-          SessionId(String(a.target_id)),
+          targetId,
           a.kind === 'reference'
             ? { kind: 'reference', resultId: String(a.result_id) }
             : { kind: 'reply', resultId: String(a.result_id), inReplyTo: MessageId(String(a.in_reply_to)) },
@@ -100,11 +124,12 @@ export function installOrganizationTools(ctx: Context, org: Organization) {
   )
   register(
     'org_message',
-    'Send an assignment or notice to your native parent or direct child.',
-    { target_id: id, text: id },
-    async (a, e) => ({
-      messageId: await org.message(e.agent!, SessionId(String(a.target_id)), String(a.text), e.signal),
-    }),
+    'Send an assignment to your native parent or direct child using target_id OR a unique visible target_role.',
+    { target_id: optionalString, target_role: optionalString, text: id },
+    async (a, e) => {
+      const targetId = resolveTarget(a, e, 'target_id', 'target_role', 'direct')
+      return { targetId, messageId: await org.message(e.agent!, targetId, String(a.text), e.signal) }
+    },
   )
   register(
     'org_wait',

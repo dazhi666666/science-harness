@@ -1,0 +1,10 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write integrations/ai4science/platform/README.md
+/ai4science-agent-tools:
+  en: 5575f656a8cc5d77
+  zh: 0731d2c2d0c9d72c
+/ai4science-agent-tools/reference:
+  en: d93746a637a37986
+  zh: 0e8eaa58e2767aa2

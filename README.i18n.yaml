@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write README.md
 /science-harness-experiment-infrastructure-v0-2:
-  en: 002162b8513ca9c0
-  zh: a7177814bb5fb5b1
+  en: 57e3ba4687d32647
+  zh: ebd2ad7e5d382c64
 /science-harness-experiment-infrastructure-v0-2/project-vision:
   en: 3a0a5ee71f972d76
   zh: ba8fd7a21930cc60

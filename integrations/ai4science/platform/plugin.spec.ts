@@ -41,7 +41,7 @@ const role = (creates: Record<string, number>) => ({
   maxInstances: 3,
 })
 
-it('native cross-parent participants execute, wait, exchange persisted job references, read then reply, and publish a sourced artifact', async () => {
+it.each(['id', 'role'] as const)('native cross-parent participants execute and exchange sourced results using %s selectors', async (selector) => {
   let mounted: Awaited<ReturnType<typeof mountPlatform>> | undefined
   const p = await boot('platform-provider-roundtrip', true, async (root) => {
     const organization: OrganizationConfig = {
@@ -127,8 +127,8 @@ it('native cross-parent participants execute, wait, exchange persisted job refer
     p.model.queue(
       parent === pa ? 'parent-left' : 'parent-right',
       toolCallResponse(`consent-${worker.agent.id}`, 'org_authorize', {
-        child_id: worker.agent.id,
-        peer_child_id: peer.agent.id,
+        ...(selector === 'role' ? { child_role: 'worker', peer_role: 'worker' }
+          : { child_id: worker.agent.id, peer_child_id: peer.agent.id }),
       }),
       new Gate().step(),
     )
@@ -179,7 +179,7 @@ it('native cross-parent participants execute, wait, exchange persisted job refer
       operation = toolValue(options, 'wait') as OperationRecord
       expect(operation.state).toBe('succeeded')
       return toolCallResponse('send', 'org_send_result', {
-        target_id: b.agent.id,
+        ...(selector === 'role' ? { target_role: 'worker' } : { target_id: b.agent.id }),
         result_id: operation.id,
         kind: 'reference',
       })
@@ -220,7 +220,7 @@ it('native cross-parent participants execute, wait, exchange persisted job refer
       expect(JSON.parse(result.artifacts[0]!.content)).toMatchObject({ complete: true, iterations: 6 })
       const ref = payload(options, 'reference')
       return toolCallResponse('reply', 'org_send_result', {
-        target_id: ref.senderSessionId,
+        ...(selector === 'role' ? { target_role: 'worker' } : { target_id: ref.senderSessionId }),
         result_id: ref.resultId,
         kind: 'reply',
         in_reply_to: ref.messageId,
@@ -228,6 +228,14 @@ it('native cross-parent participants execute, wait, exchange persisted job refer
     },
     textResponse('Peer result was read and reply accepted.'),
   )
+  const conflicting = await execute(p, 'org_send_result', {
+    target_id: b.agent.id, target_role: 'worker', result_id: 'not-submitted', kind: 'reference',
+  }, a.agent)
+  expect(conflicting.isError && conflicting.error.message).toContain('exactly one')
+  const missing = await execute(p, 'org_send_result', {
+    target_role: 'not-a-role', result_id: 'not-submitted', kind: 'reference',
+  }, a.agent)
+  expect(missing.isError && missing.error.message).toContain('found 0')
   await m.org.message(pa.agent, a.agent.id, 'Execute the requested job.', signal())
   a.gate.release()
   await vi.waitFor(() => expect(accepted).toBeDefined(), { timeout: 10000 })
@@ -235,6 +243,16 @@ it('native cross-parent participants execute, wait, exchange persisted job refer
   b.gate.release()
   await vi.waitFor(() => expect(artifactId).toBeDefined(), { timeout: 10000 })
   expect(replied).toBe(true)
+  const ambiguous = await execute(p, 'org_message', { target_role: 'supervisor', text: 'ambiguous' }, root.agent)
+  expect(ambiguous.isError && ambiguous.error.message).toContain('found 2')
+  const fullFacts = await execute(p, 'execution_facts', {}, root.agent)
+  const shortFacts = await execute(p, 'execution_facts', { operations_only: true }, root.agent)
+  expect(fullFacts.isError).toBe(false)
+  expect(shortFacts.isError).toBe(false)
+  if (fullFacts.isError || shortFacts.isError) throw new Error('Expected accessible project facts')
+  expect(fullFacts.value).toHaveProperty('facts')
+  expect(shortFacts.value).not.toHaveProperty('facts')
+  expect(shortFacts.value).toMatchObject({ operations: m.engine.list(m.access(root.agent, 'execution_facts')) })
   const privileged = m.access(root.agent, 'execution_facts')
   expect(m.engine.list(privileged)).toHaveLength(1)
   const artifact = m.artifacts.read(privileged, artifactId!)

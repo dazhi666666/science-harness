@@ -10,6 +10,8 @@ This release targets one trusted management domain on one machine. It does not c
 
 **No license. Free to use.** You may freely use, copy, modify, and redistribute the original AI4Science additions. This permission does not replace the existing licenses and copyright notices of upstream Harness or third-party components. Local validation records do not establish the status of GitHub-hosted CI.
 
+Agent-facing organization selectors, execution reads and example-scene arguments are documented in the [platform tool reference](integrations/ai4science/platform/README.md).
+
 ## Project Vision
 
 The core idea behind science-harness is to build an AI for Science system capable of independently carrying out the full research process. Its long-term scope extends from proposing research directions and scientific conjectures to planning studies, designing and executing experiments, adapting to experimental evidence, analyzing results, and writing research papers.

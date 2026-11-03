@@ -172,11 +172,11 @@ export async function mountPlatform(ctx: Context, input: Config) {
     )
     register(
       'execution_facts',
-      'Read persisted project tasks and accessible results. Historical IDs do not restore authority.',
-      {},
-      (_a, _e, c) => ({
+      'Read persisted operations; set operations_only=true to omit project history. Historical IDs do not restore authority.',
+      { operations_only: { type: 'boolean' } },
+      (a, _e, c) => ({
         operations: engine.list(c),
-        facts: engine.readFacts(c).filter((f) => {
+        ...(a.operations_only === true ? {} : { facts: engine.readFacts(c).filter((f) => {
           if (f.kind !== 'artifact-published') return true
           try {
             artifacts.read(c, (f.data as { id: string }).id)
@@ -184,7 +184,7 @@ export async function mountPlatform(ctx: Context, input: Config) {
           } catch {
             return false
           }
-        }),
+        }) }),
       }),
     )
     register(

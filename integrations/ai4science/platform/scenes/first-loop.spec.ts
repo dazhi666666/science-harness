@@ -35,7 +35,7 @@ it('first-loop stages use the public execution store and keep analysis/report po
       lead = engine.issueContext('p', 'lead', ['instrument'])
     const artifacts = new Artifacts(engine)
     const scene = new FirstLoopScenario(engine, artifacts, 'instrument')
-    const first = []
+    const first: string[] = []
     for (const [ctx, role, key, conditions] of [
       [
         a,
@@ -107,6 +107,20 @@ it('first-loop stages use the public execution store and keep analysis/report po
       sources: [final.id, decision.id],
     })
     expect(artifacts.read(lead, report.id).artifact.sources).toEqual([final.id, decision.id])
+    const inferred = scene.report(lead, {
+      markdown: `[Analysis](project-artifacts/${final.id})\n[Raw](../artifacts/${first[0]}/raw.csv)`, sources: [],
+    })
+    const stored = artifacts.read(lead, inferred.id)
+    const raw = engine.get(lead, first[0]!).artifacts.find(a => a.mediaType === 'text/csv')!
+    expect(stored.artifact.sources).toEqual([final.id, raw.id])
+    expect(stored.content).toContain(`](${final.id})`)
+    expect(stored.content).not.toContain('](project-artifacts/')
+    expect(() => scene.report(lead, { markdown: stored.content, sources: [first[0]!] })).toThrow('not operation IDs')
+    expect(() => scene.report(lead, { markdown: '[Unknown](project-artifacts/not-real)', sources: [] })).toThrow('actual source')
+    for (const target of ['project-artifacts/not-real', 'artifacts/not-real/raw.csv', '../artifacts/not-real/raw.csv'])
+      expect(() => scene.report(lead, {
+        markdown: `[Analysis](${final.id})\n[Unknown](${target})`, sources: [],
+      })).toThrow('Unknown report artifact link')
     expect(engine.list(lead)).toHaveLength(3)
     const other = engine.issueContext('p', 'no-provider', [])
     expect(() => artifacts.read(other, report.id)).toThrow('inaccessible')
