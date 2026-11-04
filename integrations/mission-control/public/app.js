@@ -1,6 +1,7 @@
 /* Mission Control 前端：一个页面融合 AI4Science 科学执行（/science）与 Agent Router 多智能体编排（/router）。 */
 import { countUp, sparkline, Constellation, reduced } from '/fx.js'
 import { t, lang, locale, setLang, applyStatic } from '/i18n.js'
+import { createGreenhouseView } from '/greenhouse.js'
 
 const $ = (s, root = document) => root.querySelector(s)
 const $$ = (s, root = document) => [...root.querySelectorAll(s)]
@@ -162,7 +163,7 @@ function paintLinks() {
   $$('[data-link]').forEach((el) => { el.className = 'link-dot ' + (state.link[el.dataset.link] ? 'on' : 'off') })
   const both = state.link.science && state.link.router
   $('.rail-foot .pulse').className = 'pulse ' + (both ? 'ok' : state.link.science || state.link.router ? '' : 'bad')
-  $('#uplink-text').textContent = t(both ? '双链路在线' : state.link.router ? '编排在线 · 科学离线' : state.link.science ? '科学在线 · 编排离线' : '链路离线')
+  $('#uplink-text').textContent = t(state.greenhouseTeam && !state.link.router ? '温室团队已挂载 · CLI 编排未启动' : both ? '双链路在线' : state.link.router ? '编排在线 · 科学离线' : state.link.science ? '科学在线 · 编排离线' : '链路离线')
 }
 
 /* ---------- 提示 ---------- */
@@ -207,7 +208,15 @@ function paintBusy() {
 
 /* ---------- 路由 / 视图切换 ---------- */
 const views = {}
-const SCIENCE_VIEWS = ['science', 'providers', 'artifacts']
+views.greenhouse = createGreenhouseView({ api, t, esc, num, available: () => !!state.link.greenhouse,
+  onSnapshot: snapshot => {
+    state.greenhouseTeam = !!snapshot.experiment; state.greenhouseExperiment = snapshot.experiment; paintLinks()
+    if (snapshot.experiment && !state.link.router && ['agents', 'fleet'].includes(state.view)) $('#primary-action span:last-child').textContent = t('查看温室')
+    if (['overview', 'fleet'].includes(state.view)) views[state.view].update?.()
+    if (state.view === 'agents' && snapshot.experiment && !state.link.router && !$('#greenhouse-live')) views.agents.mount($('#stage'))
+  },
+  openOperation: id => { go('science'); openOp(id) } })
+const SCIENCE_VIEWS = ['science', 'providers', 'artifacts', 'greenhouse']
 function go(view, { quiet = false } = {}) {
   if (!views[view]) view = 'overview'
   const leaving = state.view
@@ -217,7 +226,7 @@ function go(view, { quiet = false } = {}) {
   moveIndicator()
   $('#crumb-a').textContent = t(views[view].section)
   $('#crumb-b').textContent = t(views[view].title)
-  $('#primary-action span:last-child').textContent = t(SCIENCE_VIEWS.includes(view) ? '新建实验' : '新建编排')
+  $('#primary-action span:last-child').textContent = t(state.greenhouseTeam && !state.link.router && ['agents', 'fleet'].includes(view) ? '查看温室' : SCIENCE_VIEWS.includes(view) ? '新建实验' : '新建编排')
   const stage = $('#stage')
   stage.innerHTML = ''
   stage.className = ''
@@ -243,10 +252,10 @@ $('#menu').onclick = () => $('.rail').classList.toggle('open')
 $('#refresh').onclick = async () => {
   const b = $('#refresh')
   b.classList.remove('spinning'); void b.offsetWidth; b.classList.add('spinning')
-  await Promise.all([loadScience(true), loadRuns(true), loadHealth()])
+  await Promise.all([loadScience(true), loadRuns(true), loadHealth(), views.greenhouse.load()])
   if (state.view === 'agents' && state.openId) openRun(state.openId)
 }
-$('#primary-action').onclick = () => (SCIENCE_VIEWS.includes(state.view) ? openScienceRun() : openAgentRun())
+$('#primary-action').onclick = () => (state.greenhouseTeam && !state.link.router && ['agents', 'fleet'].includes(state.view) ? go('greenhouse') : SCIENCE_VIEWS.includes(state.view) ? openScienceRun() : openAgentRun())
 
 /* ---------- 侧栏项目 ---------- */
 function switchProject(id) {
@@ -295,7 +304,7 @@ views.overview = {
           <canvas id="constel"></canvas>
           <div class="legend"><span><i class="lg-ok"></i>${t('在线成员')}</span><span><i class="lg-off"></i>${t('未就绪')}</span><span><i class="lg-prov"></i>Provider</span><span>${t('流光 = 正在派发')}</span></div></section>
         <div class="side-col">
-          <section class="card"><div class="card-head"><span class="card-title">${t('项目预算')}</span><span class="spacer"></span><span class="tag" id="budget-proj">—</span></div><div class="budget" id="budget"></div></section>
+          <section class="card"><div class="card-head"><span class="card-title" id="budget-title">${t('项目预算')}</span><span class="spacer"></span><span class="tag" id="budget-proj">—</span></div><div class="budget" id="budget"></div></section>
           <section class="card"><div class="card-head"><span class="card-title">${t('实时脉搏')}</span><span class="card-sub">${t('实验 + 编排统一时间线')}</span><span class="spacer"></span><span class="count" id="feed-count">0</span></div><div class="feed stagger" id="feed"></div></section>
         </div>
       </div>
@@ -311,13 +320,14 @@ views.overview = {
     if (!$('#kpis')) return
     const d = state.sci, ops = d?.operations ?? []
     const active = ops.filter(opActive).length, done = ops.filter((o) => o.state === 'succeeded').length
-    const runs = state.runs, live = runs.filter((r) => r.live).length
-    const members = Object.keys(MEMBERS), online = members.filter((m) => state.health?.[m]).length
-    const tTotal = runs.reduce((a, r) => a + (r.summary?.total || 0), 0), tDone = runs.reduce((a, r) => a + (r.summary?.done || 0), 0)
+    const native = !state.link.router && state.greenhouseExperiment
+    const runs = state.runs, live = native ? Number(native.members.some(member => member.status === 'running')) : runs.filter((r) => r.live).length
+    const members = native ? native.members.map(member => member.name) : Object.keys(MEMBERS), online = native ? native.members.filter(member => member.status !== 'inactive').length : members.filter((m) => state.health?.[m]).length
+    const tTotal = native ? native.tasks.length : runs.reduce((a, r) => a + (r.summary?.total || 0), 0), tDone = native ? native.tasks.filter(task => task.status === 'done').length : runs.reduce((a, r) => a + (r.summary?.done || 0), 0)
     kpi('k-active', active, state.link.science ? t('{n} 条执行记录', { n: ops.length }) : t('科学引擎离线'), track('active', active), 'var(--blue)')
     kpi('k-done', done, ops.length ? t('成功率 {p}%', { p: Math.round((done / ops.length) * 100) }) : t('等待第一次运行'), track('done', done), 'var(--green)')
     kpi('k-artifacts', d?.artifacts.length ?? 0, t('带来源与哈希的产物'), track('art', d?.artifacts.length ?? 0), 'var(--violet)')
-    kpi('k-runs', runs.length, live ? t('{n} 个正在进行', { n: live }) : t('当前空闲'), track('runs', live), 'var(--accent)')
+    kpi('k-runs', native ? 1 : runs.length, live ? t('{n} 个正在进行', { n: live }) : t('当前空闲'), track('runs', live), 'var(--accent)')
     kpi('k-members', online, t('共 {n} 名可调度成员', { n: members.length }), track('online', online), 'var(--accent)', (v) => `${Math.round(v)}/${members.length}`)
     $('#k-active').classList.toggle('busy', active > 0)
     $('#k-runs').classList.toggle('busy', live > 0)
@@ -325,7 +335,7 @@ views.overview = {
 
     $('#hero-links').innerHTML = `
       <span class="link-pill"><i class="link-dot ${state.link.science ? 'on' : 'off'}"></i>${t('科学引擎')} <b>${state.link.science ? esc(d?.baseline?.slice(0, 7) || t('在线')) : t('离线')}</b></span>
-      <span class="link-pill"><i class="link-dot ${state.link.router ? 'on' : 'off'}"></i>Agent Router <b>${state.link.router ? (live ? t('{n} 运行中', { n: live }) : t('待命')) : t('离线')}</b></span>`
+      <span class="link-pill"><i class="link-dot ${native || state.link.router ? 'on' : 'off'}"></i>${native ? t('原生温室团队') : 'Agent Router'} <b>${native ? t('已挂载') : state.link.router ? (live ? t('{n} 运行中', { n: live }) : t('待命')) : t('离线')}</b></span>`
     const liveEl = $('#constel-live')
     liveEl.className = 'status ' + (live || active ? 'live' : 'idle')
     liveEl.textContent = live || active ? t('派发中 · {n}', { n: live + active }) : t('待命')
@@ -334,7 +344,10 @@ views.overview = {
     // 预算
     const p = d?.projects.find((x) => x.id === state.project)
     $('#budget-proj').textContent = p?.id ?? '—'
-    if (p) {
+    $('#budget-title').textContent = t(native ? '运行计量' : '项目预算')
+    if (native) {
+      $('#budget').innerHTML = `<div><div class="budget-num">${num(native.metrics.inputTokens + native.metrics.outputTokens)} <small>token</small></div><div class="muted">${t('输入 token：{n}', { n: native.metrics.inputTokens })} · ${t('输出 token：{n}', { n: native.metrics.outputTokens })}</div><div class="kpi-note">${t('不设置总 token、请求或运行时长上限')}</div></div>`
+    } else if (p) {
       const pct = p.budgetLimit ? Math.min(100, (p.budgetUsed / p.budgetLimit) * 100) : 0, C = 2 * Math.PI * 48
       const box = $('#budget')
       if (!box.querySelector('.ring')) box.innerHTML = `<svg class="ring" viewBox="0 0 112 112"><circle class="track" cx="56" cy="56" r="48"/><circle class="bar" cx="56" cy="56" r="48" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg><div><div class="budget-num"><span id="b-used">0</span> <small>/ ${num(p.budgetLimit)} ${t('单位')}</small></div><div class="muted" id="b-pct"></div><div class="kpi-note">${t('预留在完成或取消后仍计入。')}</div></div>`
@@ -363,13 +376,15 @@ views.overview = {
     $$('[data-op]', $('#recent-ops')).forEach((tr) => (tr.onclick = () => { go('science'); openOp(tr.dataset.op) }))
     if ($('#ov-new-sci')) $('#ov-new-sci').onclick = () => (state.project ? openScienceRun() : openProject())
 
-    $('#recent-runs').innerHTML = !state.link.router
+    $('#recent-runs').innerHTML = native
+      ? `<div class="empty"><p>${t('原生温室团队的任务与信箱见火星温室页面')}</p><button class="btn small ghost" id="native-team-open">${t('查看温室')}</button></div>` : !state.link.router
       ? `<div class="empty"><div class="glyph">${icon('nodes')}</div><p>${t('Agent Router 未挂载')}</p></div>`
       : runs.length
         ? `<table><tbody>${runs.slice(0, 5).map((r) => `<tr data-run="${esc(r.id)}"><td><div class="run-label">${esc(r.goal || r.id)}</div><div class="run-id">${esc(ledBy(r))}</div>${r.live ? '<div class="progress-line"><i></i></div>' : ''}</td><td>${runBadge(r)}</td></tr>`).join('')}</tbody></table>`
         : `<div class="empty"><div class="glyph">${icon('nodes')}</div><p>${t('还没有编排运行。')}</p><button class="btn small primary" id="ov-new-run">${t('启动编排')}</button></div>`
     $$('[data-run]', $('#recent-runs')).forEach((tr) => (tr.onclick = () => { state.openId = tr.dataset.run; go('agents') }))
     if ($('#ov-new-run')) $('#ov-new-run').onclick = openAgentRun
+    if ($('#native-team-open')) $('#native-team-open').onclick = () => go('greenhouse')
   },
 }
 function kpi(id, value, note, hist, color = 'var(--accent)', format) {
@@ -385,7 +400,7 @@ function constellationModel() {
   const opsBusy = new Set((state.sci?.operations || []).filter(opActive).map((o) => o.providerId))
   return {
     core: 'HARNESS',
-    inner: Object.entries(MEMBERS).map(([id, m]) => ({ id, label: m.label, ok: !!state.health?.[id], active: busy.has(id) })),
+    inner: !state.link.router && state.greenhouseExperiment ? state.greenhouseExperiment.members.map(member => ({ id: member.id, label: member.name, ok: member.status !== 'inactive', active: member.status === 'running' })) : Object.entries(MEMBERS).map(([id, m]) => ({ id, label: m.label, ok: !!state.health?.[id], active: busy.has(id) })),
     outer: (state.sci?.providers || []).map((p) => ({ id: p.id, label: p.id, active: opsBusy.has(p.id) })),
   }
 }
@@ -626,6 +641,7 @@ views.agents = {
   section: '多智能体',
   title: '编排运行',
   mount(stage) {
+    if (state.greenhouseTeam && !state.link.router) { views.greenhouse.mount(stage); return }
     if (!state.link.router) {
       stage.innerHTML = `<section class="card"><div class="empty"><div class="glyph">${icon('nodes')}</div><h3>${t('Agent Router 未挂载')}</h3></div></section>`
       return
@@ -987,13 +1003,22 @@ views.fleet = {
   section: '多智能体',
   title: '成员舰队',
   mount(stage) {
-    stage.innerHTML = `<section class="hero"><div><div class="eyebrow">${t('舰队')}</div><h1>${t('成员')}<span class="grad">${lang === 'en' ? 'fleet' : 'Fleet'}</span></h1><p>${t('主代理可调度的全部 CLI 成员，以及对话模型提供方。')}</p></div><div class="hero-links" id="fleet-sum"></div></section>
+    stage.innerHTML = `<section class="hero"><div><div class="eyebrow">${t('舰队')}</div><h1>${t('成员')}<span class="grad">${lang === 'en' ? 'fleet' : 'Fleet'}</span></h1><p id="fleet-description">${t('主代理可调度的全部 CLI 成员，以及对话模型提供方。')}</p></div><div class="hero-links" id="fleet-sum"></div></section>
       <div class="fleet stagger" id="fleet"></div>
-      <section class="card" style="margin-top:16px"><div class="card-head">${icon('cpu')}<span class="card-title">${t('对话模型 / consult')}</span></div><div id="llm"></div></section>`
+      <section class="card" style="margin-top:16px"><div class="card-head">${icon('cpu')}<span class="card-title" id="fleet-model-title">${t('对话模型 / consult')}</span></div><div id="llm"></div></section>`
   },
   update() {
     const h = state.health, box = $('#fleet')
     if (!box) return
+    if (state.greenhouseExperiment && !state.link.router) {
+      const team = state.greenhouseExperiment
+      $('#fleet-model-title').textContent = t('温室模型用量')
+      $('#fleet-description').textContent = t('原生 Harness 成员，可通过消息续接；状态来自当前温室运行。')
+      $('#fleet-sum').textContent = t('原生成员：{n}', { n: team.members.length })
+      box.innerHTML = team.members.map(member => `<section class="card member"><div class="member-top"><b class="member-name">${esc(member.name)}</b><span class="status ${member.status === 'running' ? 'running' : 'idle'}">${t(member.status === 'running' ? '运行中' : member.status === 'inactive' ? '可续接' : '空闲')}</span></div><div class="member-model">${esc(team.model.model)}</div><div class="member-path">${esc(member.id)}</div></section>`).join('')
+      $('#llm').innerHTML = `<div class="greenhouse-run-metrics"><b>${esc(team.model.model)}</b><span>${t('模型请求：{n}', { n: team.metrics.requests })}</span><span>${t('输入 token：{n}', { n: team.metrics.inputTokens })}</span><span>${t('输出 token：{n}', { n: team.metrics.outputTokens })}</span></div>`
+      return
+    }
     if (!state.link.router) { box.innerHTML = `<div class="empty">${t('Agent Router 未挂载')}</div>`; return }
     if (!h) { box.innerHTML = `<div class="empty">${t('检测成员中…')}</div>`; return }
     const ids = Object.keys(MEMBERS), online = ids.filter((id) => h[id]).length
@@ -1075,12 +1100,13 @@ let timers = []
 function boot() {
   timers.forEach(clearInterval)
   renderProjects()
-  let initial = 'overview'
-  try { initial = sessionStorage.getItem('mission-control-view') || 'overview' } catch {}
+  let initial = state.link.greenhouse ? 'greenhouse' : 'overview'
+  try { initial = sessionStorage.getItem('mission-control-view') || initial } catch {}
   go(initial)
-  loadScience(true); loadRuns(true); loadHealth()
+  loadScience(true); loadRuns(true); loadHealth(); views.greenhouse.load()
   timers = [
     setInterval(() => { if (!document.hidden) loadScience() }, 2000),
+    setInterval(() => { if (!document.hidden && ['greenhouse', 'overview', 'fleet', 'agents'].includes(state.view)) views.greenhouse.load() }, 1000),
     setInterval(() => { if (!document.hidden) loadRuns() }, 4000),
     setInterval(() => { if (!document.hidden) loadHealth() }, 15000),
   ]

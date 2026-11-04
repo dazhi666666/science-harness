@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write integrations/ai4science/greenhouse/experiments/README.md
+/greenhouse-experiment-protocol:
+  en: 34699c9cf9ff4f57
+  zh: f2f9f0f23452eb53
+/greenhouse-experiment-protocol/comparison-requirements:
+  en: 29aed7f0871e3b0d
+  zh: 1fce4d66a91705fc
+/greenhouse-experiment-protocol/repeated-workload:
+  en: f40d72f8760587f0
+  zh: 85c37f731894b468
+/greenhouse-experiment-protocol/measurements:
+  en: 66d530d86c93bc45
+  zh: 5469640c30b4b6a6
+/greenhouse-experiment-protocol/context-compaction:
+  en: 072e2278d6d2b7f2
+  zh: ecbe94e856007704
+/greenhouse-experiment-protocol/interpretation:
+  en: 8b8cd9ea9423ceaf
+  zh: 921bd3ee546e7463

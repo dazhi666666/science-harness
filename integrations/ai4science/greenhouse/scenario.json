@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "tickMs": 1000,
+  "simulatedMinutesPerTick": 1,
+  "initial": {
+    "chambers": {
+      "A": {
+        "temperature": 22,
+        "moisture": 55,
+        "light": 0.5,
+        "targetTemperature": 22
+      },
+      "B": {
+        "temperature": 23,
+        "moisture": 45,
+        "light": 0.5,
+        "targetTemperature": 23
+      },
+      "C": {
+        "temperature": 21,
+        "moisture": 60,
+        "light": 0.5,
+        "targetTemperature": 21
+      }
+    },
+    "waterLitres": 100,
+    "powerCapacity": 9
+  },
+  "physics": {
+    "ambientTemperature": 16,
+    "ambientRelaxation": 0.01,
+    "temperatureControl": 0.15,
+    "lightHeating": 0.2,
+    "moistureLoss": 0.08,
+    "lightMoistureLoss": 0.04,
+    "moisturePerLitre": 4,
+    "powerPerLight": 3
+  },
+  "durations": {
+    "light": 1,
+    "temperature": 1,
+    "water": 3,
+    "inspect": 3,
+    "calibrate": 4,
+    "sample": 4,
+    "assay": 5,
+    "analyze": 2
+  },
+  "operatingRange": {
+    "minimumTemperature": 18,
+    "maximumTemperature": 28,
+    "minimumMoisture": 30,
+    "maximumMoisture": 80
+  },
+  "tasks": [
+    {
+      "id": "light-A",
+      "chamber": "A",
+      "instructions": "Set A light to 0.7; obtain two assays at least three ticks apart, then analyze their recorded light and temperature. Do not claim a biological conclusion.",
+      "requiredAssays": 2,
+      "minimumSpacingTicks": 3,
+      "requiredLight": 0.7
+    },
+    {
+      "id": "water-B",
+      "chamber": "B",
+      "instructions": "Water B with two litres; obtain two assays at least three ticks apart, then analyze moisture observations. Coordinate shared water and the sampling robot.",
+      "requiredAssays": 2,
+      "minimumSpacingTicks": 3,
+      "requiredWaterLitres": 2
+    },
+    {
+      "id": "reference-C",
+      "chamber": "C",
+      "instructions": "Collect two C reference assays at least three ticks apart. Analyze them together with at least one water-B assay; communicate the actual result reference.",
+      "requiredAssays": 2,
+      "minimumSpacingTicks": 3,
+      "referenceTaskId": "water-B"
+    }
+  ],
+  "events": [
+    {
+      "id": "dust-power",
+      "tick": 20,
+      "kind": "power",
+      "capacity": 4.5
+    },
+    {
+      "id": "B-sensor-offset",
+      "tick": 30,
+      "kind": "sensor",
+      "chamber": "B",
+      "bias": 18
+    },
+    {
+      "id": "new-C-request",
+      "tick": 40,
+      "kind": "task",
+      "task": {
+        "id": "extra-C",
+        "chamber": "C",
+        "instructions": "Additional request: obtain one new C assay and analyze it without losing the original experiments.",
+        "requiredAssays": 1,
+        "minimumSpacingTicks": 0
+      }
+    },
+    {
+      "id": "power-restored",
+      "tick": 80,
+      "kind": "power",
+      "capacity": 9
+    }
+  ]
+}

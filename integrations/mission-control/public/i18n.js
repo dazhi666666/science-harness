@@ -514,3 +514,65 @@ export const ZH = {
   '启动多智能体编排': '启动 Multi-Agent 编排',
   '打开运行 · {r}': '打开 Run · {r}',
 }
+
+Object.assign(EN, {
+  '火星温室': 'Mars greenhouse', '虚拟实验室': 'Virtual laboratory',
+  '三个种植舱，共享设备与资源；状态来自正在运行的实验环境。': 'Three chambers share equipment and resources. Values come from the running environment.',
+  '当前运行未挂载温室环境': 'No greenhouse is mounted in this run', '正在读取温室状态…': 'Reading greenhouse state…',
+  '环境运行中 · 尚未启动 Agent，对照实验尚未开始': 'Environment running · no Agents started; comparison has not begun',
+  'Agent 实验运行中': 'Agent experiment running', '模拟时刻': 'Simulation time', '分钟': 'minutes', '模拟步': 'Tick',
+  '共享供电': 'Shared power', '负载超出容量，实际光照已降低': 'Load exceeds capacity; effective light is reduced',
+  '供电正常': 'Power available', '共享水量': 'Shared water', '环境独立推进中': 'Environment advancing independently',
+  '环境时钟已停止': 'Environment clock stopped', '种植舱 {name}': 'Chamber {name}', '传感器读数': 'Sensor readings',
+  '温度': 'Temperature', '基质水分': 'Substrate moisture', '光照设定 / 实际': 'Light setting / effective', '目标温度': 'Target temperature',
+  '实验任务': 'Experiment tasks', '待完成': 'Pending', '所需独立检测：{n}': 'Required distinct assays: {n}', '参考任务：{id}': 'Reference task: {id}',
+  '设备与操作': 'Equipment and actions', '完成模拟步：{n}': 'Due at tick {n}', '当前没有运行中的设备操作': 'No equipment actions running',
+  '温室事件': 'Greenhouse events', '暂无事件': 'No events yet', '温室已启动': 'Greenhouse started', '供电变化': 'Power changed',
+  '传感器异常': 'Sensor anomaly', '新增实验需求': 'New experiment request', '操作已接受': 'Action accepted', '操作完成': 'Action completed',
+  '操作失败': 'Action failed', '操作已取消': 'Action cancelled', '调节光照': 'Set light', '调节温控': 'Set temperature',
+  '灌溉': 'Irrigate', '巡检': 'Inspect', '传感器校准': 'Calibrate sensor', '采样': 'Sample', '检测': 'Assay', '分析': 'Analyze',
+})
+
+Object.assign(EN, {
+  '原生多 Agent · 脚本模型联调，不是真实书生评测': 'Native multi-Agent · scripted model integration, not an Intern evaluation',
+  '原生多 Agent · 真实模型运行': 'Native multi-Agent · real model run', '温室协作团队': 'Greenhouse team',
+  '脚本模型': 'Scripted model', '真实模型': 'Real model', '模型请求：{n}': 'Model requests: {n}',
+  '输入 token：{n}': 'Input tokens: {n}', '输出 token：{n}': 'Output tokens: {n}', '工具错误：{n}': 'Tool errors: {n}',
+  '协作任务板': 'Coordination board', '结果操作：{id}': 'Result operation: {id}', '等待负责人分派任务': 'Waiting for assignments',
+  '成员信箱': 'Member mailbox', '投递失败': 'Delivery failed', '已读取': 'Read', '已接受，未显式读取': 'Accepted, no explicit inbox receipt',
+  '待投递': 'Pending delivery', '暂无成员消息': 'No member messages',
+})
+
+Object.assign(EN, { '温室团队已挂载 · CLI 编排未启动': 'Greenhouse team mounted · CLI routing not started' })
+
+Object.assign(EN, { '读数状态变化': 'Reading range changed', '环境通知异常：{error}': 'Environment notification failure: {error}', '环境通知：{n}': 'Environment notices: {n}', '模型异常：{n}': 'Model failures: {n}' })
+
+Object.assign(EN, { '单 Agent · 脚本模型联调，不是正式对照评测': 'Single Agent · scripted integration, not a formal comparison', '单 Agent · 真实模型运行': 'Single Agent · real model run' })
+
+Object.assign(EN, { '运行需要处理，未判定成功': 'Run needs attention; success has not been established' })
+
+Object.assign(EN, {
+  '查看温室': 'View greenhouse', '原生温室团队': 'Native greenhouse team', '已挂载': 'Mounted', '运行计量': 'Run usage',
+  '温室对照报告': 'Greenhouse comparison report', '已保存的对照报告 · 只读': 'Saved comparison report · read only',
+  '显示已保存的实验记录；此入口不启动模型、设备或环境时钟。': 'Saved experiment records; this entry starts no models, devices or environment clock.',
+  '分析前参考输入': 'Reference input before analysis', '事前直接成员消息': 'Prior direct member messages',
+  '事前共享结果读取': 'Prior shared result reads', '不适用': 'Not applicable',
+  '压缩阈值比例': 'Compaction threshold ratio',
+  '通道计数可能重叠；共享读取不代表事前成员通信。': 'Channel counts may overlap; a shared read does not establish prior member communication.',
+  '累计用量与越界记录对应各自观测窗口，请结合观测模拟步解读。': 'Cumulative usage and violations cover each run’s observation window; interpret them alongside observed ticks.',
+  '不设置总 token、请求或运行时长上限': 'No total token, request or runtime limit',
+  '原生温室团队的任务与信箱见火星温室页面': 'View native team tasks and mail in the greenhouse page',
+  '原生 Harness 成员，可通过消息续接；状态来自当前温室运行。': 'Native Harness members can resume on messages. Status comes from this greenhouse run.',
+  '原生成员：{n}': 'Native members: {n}', '可续接': 'Continuable', '空闲': 'Idle', '温室模型用量': 'Greenhouse model usage',
+  '单／多 Agent 对照': 'Single/multi-Agent comparison', '对照条件通过': 'Comparison conditions passed',
+  '对照条件尚未通过': 'Comparison conditions pending', '描述性记录，不自动判定架构优势': 'Descriptive records; no automatic claim of architecture superiority',
+  '模型来源': 'Model source', '实验完成': 'Experiments completed', '完成模拟步': 'Completion tick', '尚未完成': 'Incomplete',
+  '输入 token': 'Input tokens', '输出 token': 'Output tokens', '模型请求': 'Model requests', '请求重试': 'Request retries',
+  '温度越界模拟步': 'Temperature violation ticks', '水分越界模拟步': 'Moisture violation ticks', '供电超载模拟步': 'Power overload ticks',
+  '人工设备提交': 'Operator device submissions', '压缩摘要': 'Compaction summaries', '单 Agent': 'Single Agent', '多 Agent': 'Multi-Agent', '指标': 'Metric',
+  '观测模拟步': 'Observed ticks', '水分越界占比': 'Moisture violation share',
+  '试验标识': 'Trial ID', '压缩摘要：{n}': 'Compaction summaries: {n}', '压缩失败：{n}': 'Compaction failures: {n}',
+  '压缩失败': 'Compaction failures', '未闭合压缩记录': 'Unclosed compaction records',
+  '任务与交付核验': 'Task and handoff verification', '通过': 'Passed', '尚未通过': 'Not yet passed',
+  '分析耗时（秒）': 'Analysis latency (seconds)', '活动记录跨度（秒）': 'Activity record span (seconds)',
+})
