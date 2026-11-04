@@ -163,7 +163,7 @@ function paintLinks() {
   $$('[data-link]').forEach((el) => { el.className = 'link-dot ' + (state.link[el.dataset.link] ? 'on' : 'off') })
   const both = state.link.science && state.link.router
   $('.rail-foot .pulse').className = 'pulse ' + (both ? 'ok' : state.link.science || state.link.router ? '' : 'bad')
-  $('#uplink-text').textContent = t(state.greenhouseTeam && !state.link.router ? '温室团队已挂载 · CLI 编排未启动' : both ? '双链路在线' : state.link.router ? '编排在线 · 科学离线' : state.link.science ? '科学在线 · 编排离线' : '链路离线')
+  $('#uplink-text').textContent = t(state.greenhouseTeam && !state.link.router ? '温室团队已挂载' : both ? '双链路在线' : state.link.router ? '编排在线 · 科学离线' : state.link.science ? '科学在线 · 编排离线' : '链路离线')
 }
 
 /* ---------- 提示 ---------- */

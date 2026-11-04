@@ -543,7 +543,7 @@ Object.assign(EN, {
   '待投递': 'Pending delivery', '暂无成员消息': 'No member messages',
 })
 
-Object.assign(EN, { '温室团队已挂载 · CLI 编排未启动': 'Greenhouse team mounted · CLI routing not started' })
+Object.assign(EN, { '温室团队已挂载': 'Greenhouse team mounted' })
 
 Object.assign(EN, { '读数状态变化': 'Reading range changed', '环境通知异常：{error}': 'Environment notification failure: {error}', '环境通知：{n}': 'Environment notices: {n}', '模型异常：{n}': 'Model failures: {n}' })
 
