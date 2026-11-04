@@ -38,7 +38,8 @@ export class GreenhouseEventDispatch {
    */
   constructor(private readonly world: GreenhouseWorld,
     private readonly send: (role: string, events: WorldEvent[], signal: AbortSignal) => Promise<void>,
-    private readonly pollMs: number, signal: AbortSignal, private readonly onFailure: (error: Error) => void) {
+    private readonly pollMs: number, signal: AbortSignal, private readonly onFailure: (error: Error) => void,
+    private readonly automatic = true) {
     if (!Number.isSafeInteger(pollMs) || pollMs < 1) throw new Error('Positive event observation interval required')
     this.signal = AbortSignal.any([signal, this.abort.signal])
     this.signal.throwIfAborted()
@@ -52,9 +53,21 @@ export class GreenhouseEventDispatch {
       this.onFailure(this.failure)
     }).finally(() => {
       this.pending = undefined
-      if (!this.signal.aborted && !this.failure) this.timer = setTimeout(() => this.poll(), this.pollMs)
+      if (this.automatic && !this.signal.aborted && !this.failure) this.timer = setTimeout(() => this.poll(), this.pollMs)
     })
   }
+  /** Deliver committed events before the event clock admits another advance.
+   * @returns Completion once all currently selected messages have been accepted.
+   */
+  async flush(): Promise<void> {
+    clearTimeout(this.timer); this.timer = undefined
+    if (this.pending) await this.pending
+    clearTimeout(this.timer); this.timer = undefined
+    if (this.signal.aborted || this.failure) return
+    this.poll()
+    await this.pending
+  }
+
   private async dispatch(): Promise<void> {
     this.signal.throwIfAborted()
     const events = this.world.events(this.cursor)

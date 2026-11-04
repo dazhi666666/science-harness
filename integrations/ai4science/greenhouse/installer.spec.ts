@@ -28,6 +28,8 @@ it('installs both modes with the same three routes and an explicitly recorded co
     expect(rows.some((row: { id: string }) => row.id === 'llm-retry')).toBe(true)
     const providers = rows.find((row: { id: string }) => row.id === 'llm-pi-ai').config.providers
     expect(Object.values(providers).map(provider => (provider as { apiKeyEnv: string }).apiKeyEnv)).toEqual(['TEST_KEY_ONE', 'TEST_KEY_TWO', 'TEST_KEY_THREE'])
+    expect(Object.values(providers).every(provider => (provider as { retryPolicy: { mode: string } }).retryPolicy.mode === 'always')).toBe(true)
+    expect(rows.find((row: { id: string }) => row.id === 'greenhouse-agents').config).toMatchObject({ clockMode: 'event-driven', idleReviewTicks: 30 })
     const compaction = rows.find((row: { id: string }) => row.id === 'compaction-basic').config
     expect(compaction).toMatchObject({ auto: true, thresholdRatio: 0.02, retainTokens: 512 })
     expect(compaction).not.toHaveProperty('retainRatio')
@@ -38,4 +40,6 @@ it('installs both modes with the same three routes and an explicitly recorded co
   }
   expect(records[0].sourceHashes).toEqual(records[1].sourceHashes)
   expect(records[0].modelPolicy).toEqual(records[1].modelPolicy)
+  expect(records[0].clockPolicy).toEqual({ mode: 'event-driven', idleReviewTicks: 30 })
+  expect(records[0].clockPolicy).toEqual(records[1].clockPolicy)
 })

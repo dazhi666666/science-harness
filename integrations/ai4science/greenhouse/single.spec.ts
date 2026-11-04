@@ -1,7 +1,7 @@
 /** The single-Agent baseline shares actual greenhouse tools and asynchronous capabilities with the native team. */
 import { afterEach, expect, it, vi } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { boot, execute, Gate, type Probe } from '../platform/organization-fixture.ts'
@@ -11,7 +11,7 @@ import { createSinglePolicy } from './fixtures/single-policy.ts'
 
 const probes: Probe[] = []
 afterEach(async () => { for (const p of probes.splice(0)) await p.close() })
-async function setup(label: string, runningPolicy: boolean) {
+async function setup(label: string, runningPolicy: boolean, clockMode: 'timer' | 'event-driven' = 'timer') {
   const p = await boot(label, true, async () => ({ withoutScience: true })); probes.push(p)
   const scenario = scenarioSchema.parse(JSON.parse(readFileSync(new URL('./fixtures/baseline.scenario.json', import.meta.url), 'utf8')))
   scenario.tickMs = runningPolicy ? 10 : 100000
@@ -23,14 +23,14 @@ async function setup(label: string, runningPolicy: boolean) {
   const log = vi.spyOn(console, 'log').mockImplementation(() => {})
   try {
     const run = await mountMultiAgent(p.ctx, { directory: join(p.root, 'run'), scenarioFile, project: 'cross-branch-project',
-      port: 0, refreshMs: 100, providerCallTimeoutMs: 1000, mode: 'single-agent', source: 'scripted',
+      port: 0, refreshMs: 100, providerCallTimeoutMs: 1000, mode: 'single-agent', clockMode, source: 'scripted',
       model: { provider: 'teams-probe', model: 'script' } })
     return { p, run }
   } finally { log.mockRestore() }
 }
 
-it('completes the identical three experiments with one native member and passes independent evidence verification', async () => {
-  const { p, run } = await setup('greenhouse-single-baseline', true)
+it.each(['timer', 'event-driven'] as const)('completes the identical three experiments with one member under %s and passes evidence verification', async clockMode => {
+  const { p, run } = await setup('greenhouse-single-baseline-' + clockMode, true, clockMode)
   await vi.waitFor(() => expect(run.team.snapshot().tasks.map(task => task.status)).toEqual(['done', 'done', 'done']), { timeout: 15000 })
   expect(run.team.snapshot().members.map(member => member.name)).toEqual(['lead'])
   expect(run.team.snapshot().messages).toHaveLength(0)
@@ -54,6 +54,41 @@ it('completes the identical three experiments with one native member and passes 
   const offline = spawnSync('python3', [fileURLToPath(new URL('./verify.py', import.meta.url)), join(p.root, 'run'),
     '--sessions', join(p.root, 'sessions'), '--offline'], { encoding: 'utf8' })
   expect(offline.status, offline.stdout + offline.stderr).toBe(0)
+  const copy = join(p.root, 'clock-invariance-copy')
+  cpSync(join(p.root, 'run'), copy, { recursive: true })
+  cpSync(join(p.root, 'sessions'), join(copy, 'sessions'), { recursive: true })
+  const invariance = spawnSync('python3', ['-c', `
+import sys,json,pathlib,sqlite3
+sys.path.insert(0,sys.argv[1])
+from compare import collect
+original=collect(sys.argv[2],offline=True,sessions=sys.argv[3])
+copy=pathlib.Path(sys.argv[4])
+db=sqlite3.connect(copy/'execution/execution.sqlite')
+with db:
+ db.execute("UPDATE events SET at='host-clock-is-not-a-reference'")
+ db.execute("UPDATE operations SET created_at='host-clock-is-not-a-reference',updated_at='host-clock-is-not-a-reference'")
+db.close()
+db=sqlite3.connect(copy/'device/greenhouse.sqlite')
+with db:
+ config=json.loads(db.execute('SELECT config FROM world WHERE id=1').fetchone()[0])
+ config['tickMs']=1
+ db.execute('UPDATE world SET config=? WHERE id=1',(json.dumps(config),))
+db.close()
+for file in (copy/'sessions').rglob('session.v4.jsonl'):
+ rows=[json.loads(line) for line in file.open()]
+ for event in rows:
+  if 'time' in event:event['time']=0
+ file.write_text(''.join(json.dumps(event)+'\\n' for event in rows))
+changed=collect(copy,offline=True)
+keys=['verification','taskCompletionTick','taskLatencyTicks','allTaskCompletionTick','perRoute','compactionEvents','actualRequestRetries','sharedToolHash','scenarioHash']
+assert all(original[key]==changed[key] for key in keys)
+assert original['timeReference']==changed['timeReference']=='simulation-ticks'
+assert 'wallClock' not in original and 'wallClock' not in changed
+assert original['allTaskCompletionTick'] is not None
+print(json.dumps({'clockIndependent':True,'completedTasks':changed['verification']['completedTasks'],'taskLatencyTicks':changed['taskLatencyTicks']}))
+`, fileURLToPath(new URL('.', import.meta.url)), join(p.root, 'run'), join(p.root, 'sessions'), copy], { encoding: 'utf8' })
+  expect(invariance.status, invariance.stdout + invariance.stderr).toBe(0)
+  expect(JSON.parse(invariance.stdout)).toMatchObject({ clockIndependent: true, completedTasks: 3 })
 })
 
 it('lets the single Agent submit independent operations concurrently and receives chamber-targeted environment notices itself', async () => {

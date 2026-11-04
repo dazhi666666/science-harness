@@ -2,7 +2,6 @@
 import argparse
 from collections import Counter
 from contextlib import closing
-from datetime import datetime
 import hashlib
 import json
 import pathlib
@@ -18,8 +17,6 @@ def collect(directory, offline=False, sessions=None):
     with closing(read_database(directory / 'execution/execution.sqlite', offline)) as db:
         facts = [json.loads(row[0]) for row in db.execute("SELECT data_json FROM events WHERE type='fact' ORDER BY seq")]
         interventions = db.execute("SELECT count(*) FROM operations WHERE actor_id='greenhouse-operator'").fetchone()[0]
-        started_at, last_record_at = db.execute('SELECT min(at),max(at) FROM events').fetchone()
-        analyses = [(json.loads(command), at) for command, at in db.execute("SELECT input_json,updated_at FROM operations WHERE state='succeeded'")]
     configurations = [fact['data'] for fact in facts if fact['kind'] == 'greenhouse-run-config']
     if not configurations:
         raise ValueError('Run lacks a recorded model/scenario configuration; preserve it as legacy evidence, start a fresh comparison run')
@@ -86,13 +83,6 @@ def collect(directory, offline=False, sessions=None):
     compaction = Counter(event['type'] for event in session_events if event.get('type', '').startswith('compaction/'))
     retries = sum(event.get('type') == 'llm/retry-started' for event in session_events)
     shared_tool_hash = hashlib.sha256(json.dumps(sorted(shared_tools.values(), key=lambda tool: tool['name']), sort_keys=True).encode()).hexdigest() if shared_tools and not tool_conflicts else None
-    def seconds_since_start(at):
-        return round((datetime.fromisoformat(at.replace('Z', '+00:00')) - datetime.fromisoformat(started_at.replace('Z', '+00:00'))).total_seconds(), 3)
-    analysis_times = {}
-    for command, at in analyses:
-        if command['action'] == 'analyze':
-            analysis_times[command['taskId']] = min(analysis_times.get(command['taskId'], at), at)
-    analysis_at = max(analysis_times.values()) if len(analysis_times) == len(released) else None
     installation_path = directory / 'installation.json'
     installation = json.loads(installation_path.read_text()) if installation_path.exists() else None
     stop_path = directory / 'baseline-stop.json'
@@ -103,13 +93,12 @@ def collect(directory, offline=False, sessions=None):
         audit['transportPolicy'] == transport and audit['status'] in ['verified', 'no-model-socket'] for audit in audits)
     return {'directory': str(directory), 'mode': run['mode'], 'source': run['source'], 'model': run['model'],
             'providerPool': run.get('providerPool', [run['model']['provider']]),
-            'scenarioHash': hashlib.sha256(config.encode()).hexdigest(), 'tickMs': scenario['tickMs'],
+            'scenarioHash': hashlib.sha256(json.dumps({key: value for key, value in scenario.items() if key != 'tickMs'}, sort_keys=True).encode()).hexdigest(),
+            'clockPolicy': {'mode': run.get('clockMode', 'timer'), 'idleReviewTicks': run.get('idleReviewTicks', 30)},
             'sharedToolHash': shared_tool_hash, 'installation': installation,
             'sharedToolDeclarationConflicts': sorted(tool_conflicts),
             'networkAudit': {'verified': network_verified, 'observations': audits},
-            'wallClock': {'startedAt': started_at, 'lastExecutionRecordAt': last_record_at,
-                          'activitySpanSeconds': seconds_since_start(last_record_at),
-                          'analysisCompleteAt': analysis_at, 'analysisLatencySeconds': seconds_since_start(analysis_at) if analysis_at else None},
+            'timeReference': 'simulation-ticks',
             'verification': verification, 'perRoute': per_route, 'actualRequestRetries': retries,
             'usageSource': 'native-session-events' if legacy_usage else 'execution-usage-facts',
             'ownerStop': owner_stop,
@@ -126,6 +115,8 @@ def compare(single, multi):
     matching = {
         'one_single_and_one_multi': single['mode'] == 'single-agent' and multi['mode'] == 'multi-agent',
         'identical_scenario_and_clock': single['scenarioHash'] == multi['scenarioHash'],
+        'both_event_driven': single['clockPolicy']['mode'] == multi['clockPolicy']['mode'] == 'event-driven',
+        'identical_virtual_clock_policy': single['clockPolicy'] == multi['clockPolicy'],
         'identical_model_settings': single['model'] == multi['model'],
         'identical_provider_pool': single['providerPool'] == multi['providerPool'],
         'identical_shared_tool_declarations': bool(single['sharedToolHash']) and single['sharedToolHash'] == multi['sharedToolHash'],
@@ -139,8 +130,9 @@ def compare(single, multi):
         'no_operator_device_submissions': single['operatorSubmittedOperations'] == multi['operatorSubmittedOperations'] == 0,
     }
     return {'scope': 'descriptive-pair', 'comparisonReady': all(matching.values()), 'matchingChecks': matching,
-            'single': single, 'multi': multi, 'scientificQuality': 'not-assessed', 'architectureAdvantage': 'not-assessed',
-            'interpretation': 'A pair describes these runs only. Repeat matched trials, inspect failures and compare completion, latency, care and compaction recovery; token totals are measurements, not budgets.'}
+            'single': single, 'multi': multi, 'timeReference': 'simulation-ticks',
+            'scientificQuality': 'not-assessed', 'architectureAdvantage': 'not-assessed',
+            'interpretation': 'A pair describes these runs only. Durations, release-to-analysis latency and care use simulation ticks, not the host clock. Repeat matched trials and inspect failures and compaction recovery; token totals are measurements, not budgets.'}
 
 
 def main():

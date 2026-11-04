@@ -17,8 +17,9 @@ export const name = 'ai4science-greenhouse-environment'
 export const inject = []
 const configSchema = z.object({ directory: z.string().min(1), scenarioFile: z.string().min(1),
   project: z.string().min(1), port: z.number().int().min(0).max(65535),
+  clockMode: z.enum(['timer', 'event-driven']).default('timer'), idleReviewTicks: z.number().int().positive().default(30),
   refreshMs: z.number().int().min(100).max(60000), providerCallTimeoutMs: z.number().int().positive() }).strict()
-export type Config = z.infer<typeof configSchema>
+export type Config = z.input<typeof configSchema>
 
 /** Mount the environment and authenticated frontend without creating Agents or calling models.
  * @param ctx Existing Harness plugin context.
@@ -42,7 +43,7 @@ export async function mountEnvironment(ctx: Context, input: Config, experimentVi
     await mission?.close()
     abort.abort()
     await dashboard?.closed
-    clock?.close()
+    await clock?.close()
     await engine?.close()
     opened?.close()
     world.close()
@@ -53,7 +54,7 @@ export async function mountEnvironment(ctx: Context, input: Config, experimentVi
       pollIntervalMs: config.refreshMs, providerCallTimeoutMs: config.providerCallTimeoutMs })
     await engine.open()
     engine.createProject(config.project, 0)
-    clock = new GreenhouseClock(world, error => console.error(`Greenhouse clock failed: ${error.message}`))
+    clock = new GreenhouseClock(world, error => console.error(`Greenhouse clock failed: ${error.message}`), config.clockMode, config.idleReviewTicks)
     dashboard = await startDashboard(engine, {
       apiVersion: 1, enabled: true, baseline: HARNESS_BASELINE, directory: engine.directory,
       pollIntervalMs: config.refreshMs, providerCallTimeoutMs: config.providerCallTimeoutMs,

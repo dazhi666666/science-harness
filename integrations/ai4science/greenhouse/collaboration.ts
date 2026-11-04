@@ -168,15 +168,6 @@ export class GreenhouseCollaboration {
     return messages
   }
 
-  /** Check the member's unread mailbox without changing read status.
-   * @param agent Exact current participant.
-   * @returns Whether a project message is already waiting for explicit reading.
-   */
-  hasUnread(agent: Agent): boolean {
-    const member = this.actor(agent, 'lab_inbox')
-    return this.board.inbox(member.name, { unreadOnly: true, markRead: false }).length > 0
-  }
-
   /** Complete an assignment only after the simulator and execution store confirm its actual analysis.
    * @param agent Exact assignee.
    * @param taskId Router assignment identity.

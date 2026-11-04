@@ -367,6 +367,24 @@ export class GreenhouseWorld {
     })
   }
 
+  /** Advance to the next committed event or virtual review point, without consulting a host clock.
+   * @param reviewTicks Virtual review interval when no earlier job or scenario event occurs.
+   * @returns The resulting simulation tick.
+   */
+  advanceToNextEvent(reviewTicks: number): number {
+    const state = this.load(), cursor = this.eventCursor()
+    const next = Math.min(state.tick + reviewTicks,
+      ...state.jobs.filter(job => job.state === 'running').map(job => job.dueTick),
+      ...this.scenario.events.filter(event => event.tick > state.tick && !state.appliedEvents.includes(event.id)).map(event => event.tick))
+    let tick = state.tick
+    while (tick < next) {
+      tick = this.step()
+      if (this.eventCursor() !== cursor) return tick
+    }
+    this.update(() => this.event(tick, 'clock-advanced', { fromTick: state.tick, tick }))
+    return tick
+  }
+
   /** Agent-visible measurements omit simulator truth and future events.
    * @returns Current sensor readings, available tasks, completed tasks and active actions.
    */

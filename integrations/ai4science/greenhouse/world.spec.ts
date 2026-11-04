@@ -8,8 +8,8 @@ import { GreenhouseWorld } from './world.ts'
 import { GreenhouseClock } from './clock.ts'
 
 const roots: string[] = [], worlds: GreenhouseWorld[] = [], clocks: GreenhouseClock[] = []
-afterEach(() => {
-  for (const clock of clocks.splice(0)) clock.close()
+afterEach(async () => {
+  for (const clock of clocks.splice(0)) await clock.close()
   for (const world of worlds.splice(0)) world.close()
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
   vi.useRealTimers()
@@ -29,7 +29,7 @@ function run(world: GreenhouseWorld, id: string, command: Command) {
   return finished
 }
 
-it('progresses without queries, reads never tick, and clock disposal stops future callbacks', () => {
+it('progresses without queries, reads never tick, and clock disposal stops future callbacks', async () => {
   vi.useFakeTimers()
   const world = open(), failures: Error[] = []
   world.submit('sample', 'project', 'sample', { action: 'sample', chamber: 'C', taskId: 'reference-C' })
@@ -39,14 +39,14 @@ it('progresses without queries, reads never tick, and clock disposal stops futur
   const before = world.audit()
   for (let n = 0; n < 20; n++) { world.observe(); world.operation('sample'); world.events(0) }
   expect(world.audit()).toEqual(before)
-  clock.close()
+  await clock.close()
   vi.advanceTimersByTime(world.scenario.tickMs * 10)
   expect(world.audit()).toEqual(before)
   expect(failures).toEqual([])
-  expect(clock.status()).toEqual({ running: false, disposed: true, failure: null })
+  expect(clock.status()).toEqual({ running: false, mode: 'timer', disposed: true, failure: null })
 })
 
-it('owns only one clock and reports clock failure without losing the ownership lock', () => {
+it('owns only one clock and reports clock failure without losing the ownership lock', async () => {
   vi.useFakeTimers()
   const world = open(), failures: Error[] = []
   const clock = new GreenhouseClock(world, error => failures.push(error)); clocks.push(clock)
@@ -57,7 +57,7 @@ it('owns only one clock and reports clock failure without losing the ownership l
   expect(clock.status()).toMatchObject({ running: false, failure: 'storage unavailable' })
   expect(failures).toHaveLength(1)
   expect(() => new GreenhouseClock(world, () => {})).toThrow('Another clock')
-  clock.close()
+  await clock.close()
   vi.mocked(world.step).mockImplementation(original)
   const replacement = new GreenhouseClock(world, error => failures.push(error)); clocks.push(replacement)
   vi.advanceTimersByTime(world.scenario.tickMs)

@@ -23,10 +23,9 @@ export interface ActorAccess { context: OperationContext; chamber?: z.infer<type
  * @param access Validate the exact participant and tool, and return its execution authority.
  * @param signal Application disposal signal, separate from an individual tool call.
  * @param pollMs Program-side observation interval; there is no model-polling or project deadline.
- * @param inboxReady Project mailbox readiness, including mail already admitted to native input.
  */
 export function installGreenhouseTools(ctx: Context, runtime: Runtime,
-  access: (agent: Agent, tool: string) => ActorAccess, signal: AbortSignal, pollMs: number, inboxReady?: (agent: Agent) => boolean): void {
+  access: (agent: Agent, tool: string) => ActorAccess, signal: AbortSignal, pollMs: number): void {
   if (!Number.isSafeInteger(pollMs) || pollMs < 1) throw new Error('Positive observation interval required')
   const artifacts = new Artifacts(runtime.engine)
   const register = (name: string, description: string, parameters: ParameterSchemaSpec,
@@ -84,7 +83,10 @@ export function installGreenhouseTools(ctx: Context, runtime: Runtime,
       const combined = AbortSignal.any([callSignal, signal])
       combined.throwIfAborted()
       return new Promise((resolve, reject) => {
+        let settled = false, releaseWait = () => {}
         const finish = (value?: unknown, error?: unknown) => {
+          if (settled) return
+          settled = true; releaseWait()
           clearInterval(timer)
           combined.removeEventListener('abort', aborted)
           if (error !== undefined) reject(error); else resolve(value)
@@ -102,13 +104,16 @@ export function installGreenhouseTools(ctx: Context, runtime: Runtime,
             }
             const events = runtime.world.events(after)
             if (events.length) finish({ reason: 'events', events, last_seq: events.at(-1)!.seq })
-            else if (inboxReady?.(actor) || actor.inbox.nextStep.length || actor.inbox.nextTurn.length)
+            else if (actor.inbox.nextStep.length || actor.inbox.nextTurn.length)
               finish({ reason: 'inbox', last_seq: after })
           } catch (error) { finish(undefined, error) }
         }
         const timer = setInterval(check, pollMs)
         combined.addEventListener('abort', aborted, { once: true })
         if (combined.aborted) aborted(); else check()
+        if (!settled) releaseWait = runtime.clock.waiting(actor.id, () => combined.aborted
+          || runtime.world.eventCursor() > after || !!actor.inbox.nextStep.length || !!actor.inbox.nextTurn.length
+          || (operationId !== undefined && runtime.world.operation(operationId)?.state !== 'running'))
       })
     })
   const id = { type: 'string', required: true } as const
@@ -156,7 +161,10 @@ export function installGreenhouseTools(ctx: Context, runtime: Runtime,
           // Only the known pre-dispatch busy refusal is retryable; the stable request key is unchanged.
           if (!(error instanceof Error) || !error.message.startsWith('Resource busy')) throw error
         }
-        await delay(pollMs, undefined, { signal: combined })
+        const releaseWait = runtime.clock.waiting(_actor.id, () => !runtime.world.audit().jobs.some(operation =>
+          operation.state === 'running' && operation.resources.some(resource => resources.includes(resource))))
+        try { await delay(pollMs, undefined, { signal: combined }) }
+        finally { releaseWait() }
       }
     })
 }

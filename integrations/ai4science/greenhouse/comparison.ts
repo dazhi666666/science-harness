@@ -11,7 +11,8 @@ const runSchema = z.object({
   perRoute: z.record(z.string(), z.object({ requests: count, inputTokens: count, outputTokens: count })),
   actualRequestRetries: count, operatorSubmittedOperations: count, allTaskCompletionTick: count.nullable(),
   compactionEvents: z.record(z.string(), count), failedCompactions: count,
-  wallClock: z.object({ activitySpanSeconds: z.number().nonnegative(), analysisLatencySeconds: z.number().nonnegative().nullable() }).optional(),
+  clockPolicy: z.object({ mode: z.enum(['timer', 'event-driven']), idleReviewTicks: count }).optional(),
+  taskLatencyTicks: z.record(z.string(), count).optional(),
 })
 const reportSchema = z.object({ scope: z.literal('descriptive-pair'), comparisonReady: z.boolean(),
   matchingChecks: z.record(z.string(), z.boolean()), single: runSchema, multi: runSchema,

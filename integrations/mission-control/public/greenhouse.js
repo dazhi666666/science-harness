@@ -4,6 +4,7 @@ export function createGreenhouseView({ api, t, esc, num, available, openOperatio
   const actionNames = { light: '调节光照', temperature: '调节温控', water: '灌溉', inspect: '巡检',
     calibrate: '传感器校准', sample: '采样', assay: '检测', analyze: '分析' }
   const eventNames = { 'world-created': '温室已启动', 'environment-power': '供电变化', 'environment-sensor': '传感器异常',
+    'clock-advanced': '虚拟时间推进',
     'environment-task': '新增实验需求', 'environment-range': '读数状态变化', 'operation-started': '操作已接受', 'operation-completed': '操作完成',
     'operation-failed': '操作失败', 'operation-cancelled': '操作已取消' }
   function comparisonCard(report) {
@@ -13,6 +14,7 @@ export function createGreenhouseView({ api, t, esc, num, available, openOperatio
       ['试验标识', run => run.directory.split(/[\\/]/).slice(-2).join(' / ')],
       ['模型来源', run => t(run.source === 'real-model' ? '真实模型' : '脚本模型')],
       ['压缩阈值比例', run => run.compactionThresholdRatio == null ? '—' : `${num(run.compactionThresholdRatio * 100)}%`],
+      ['时间推进方式', run => run.clockPolicy ? t(run.clockPolicy.mode === 'event-driven' ? '事件驱动' : '定时驱动') : t('未记录')],
       ['实验完成', run => `${run.verification.completedTasks} / ${run.verification.tasks}`],
       ['任务与交付核验', run => t(run.verification.success ? '通过' : '尚未通过')],
       ['分析前参考输入', run => run.verification.referenceEvidence ? `${run.verification.referenceEvidence.filter(item => item.referenceInputObserved).length} / ${run.verification.referenceEvidence.length}` : '—'],
@@ -20,8 +22,7 @@ export function createGreenhouseView({ api, t, esc, num, available, openOperatio
       ['事前共享结果读取', run => run.verification.referenceEvidence ? `${run.verification.referenceEvidence.filter(item => item.sharedResultReadBeforeAnalysis).length} / ${run.verification.referenceEvidence.length}` : '—'],
       ['观测模拟步', run => num(run.verification.tick)],
       ['完成模拟步', run => run.allTaskCompletionTick === null ? t('尚未完成') : num(run.allTaskCompletionTick)],
-      ['分析耗时（秒）', run => run.wallClock?.analysisLatencySeconds == null ? '—' : num(run.wallClock.analysisLatencySeconds)],
-      ['活动记录跨度（秒）', run => run.wallClock ? num(run.wallClock.activitySpanSeconds) : '—'],
+      ['任务平均延迟（模拟步）', run => run.taskLatencyTicks && Object.keys(run.taskLatencyTicks).length ? num(Object.values(run.taskLatencyTicks).reduce((a, b) => a + b, 0) / Object.keys(run.taskLatencyTicks).length) : '—'],
       ['输入 token', run => num(total(run, 'inputTokens'))], ['输出 token', run => num(total(run, 'outputTokens'))],
       ['模型请求', run => num(total(run, 'requests'))], ['请求重试', run => num(run.actualRequestRetries)],
       ['温度越界模拟步', run => num(run.verification.operatingMetrics.temperatureViolationTicks)],
@@ -36,6 +37,7 @@ export function createGreenhouseView({ api, t, esc, num, available, openOperatio
     const checks = Object.values(report.matchingChecks)
     return `<section class="card"><div class="card-head"><span class="card-title">${t('单／多 Agent 对照')}</span><span class="spacer"></span><span class="tag">${t(report.comparisonReady ? '对照条件通过' : '对照条件尚未通过')}</span></div>
       <p class="kpi-note">${t('描述性记录，不自动判定架构优势')} · ${checks.filter(Boolean).length} / ${checks.length}</p>
+      <p class="kpi-note">${t('时间基准：虚拟实验室模拟步；本机时间不参与评测。')}</p>
       <p class="kpi-note">${t('通道计数可能重叠；共享读取不代表事前成员通信。')}</p>
       <p class="kpi-note">${t('累计用量与越界记录对应各自观测窗口，请结合观测模拟步解读。')}</p>
       <table><thead><tr><th>${t('指标')}</th><th>${t('单 Agent')}</th><th>${t('多 Agent')}</th></tr></thead><tbody>${rows.map(([label, value]) => `<tr><td>${t(label)}</td><td>${esc(value(report.single))}</td><td>${esc(value(report.multi))}</td></tr>`).join('')}</tbody></table></section>`
@@ -58,7 +60,7 @@ export function createGreenhouseView({ api, t, esc, num, available, openOperatio
       <div class="kpis">${[
         ['模拟时刻', `${num(world.simulatedMinutes)} ${t('分钟')}`, `${t('模拟步')} ${world.tick}`],
         ['共享供电', `${num(world.requestedPower)} / ${num(world.powerCapacity)}`, t(world.requestedPower > world.powerCapacity ? '负载超出容量，实际光照已降低' : '供电正常')],
-        ['共享水量', `${num(world.waterLitres)} L`, t(clock.running ? '环境独立推进中' : '环境时钟已停止')],
+        ['共享水量', `${num(world.waterLitres)} L`, t(!clock.running ? '环境时钟已停止' : clock.mode === 'event-driven' ? '事件驱动 · 等待决策后推进' : '环境独立推进中')],
       ].map(([title, value, detail]) => `<div class="kpi"><div class="kpi-top">${t(title)}</div><div class="kpi-value">${esc(value)}</div><div class="kpi-note">${esc(detail)}</div></div>`).join('')}</div>
       ${experiment ? `<section class="card greenhouse-team"><div class="card-head"><span class="card-title">${t('温室协作团队')}</span><span class="spacer"></span><span class="tag">${t(experiment.source === 'scripted' ? '脚本模型' : '真实模型')}</span></div>
       <div class="greenhouse-members">${experiment.members.map(member => `<div><b>${esc(member.name)}</b><span>${esc(member.status)}</span><small>${esc(member.id)}</small></div>`).join('')}</div>

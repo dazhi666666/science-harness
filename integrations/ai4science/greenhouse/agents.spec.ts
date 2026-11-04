@@ -132,7 +132,7 @@ function worker(chamber: Chamber, channel: 'mail' | 'records' | 'late' = 'mail',
   }
 }
 
-it.each(['mail', 'records', 'late'] as const)('validates actual reference input through %s and reports communication separately', async channel => {
+it.each((['mail', 'records', 'late'] as const).flatMap(channel => (['timer', 'event-driven'] as const).map(clockMode => ({ channel, clockMode }))))('validates reference input through $channel with $clockMode and reports communication separately', async ({ channel, clockMode }) => {
   const p = await boot('greenhouse-native-multi', true, async () => ({ withoutScience: true }))
   probes.push(p)
   const scenario = scenarioSchema.parse(JSON.parse(readFileSync(new URL('./scenario.json', import.meta.url), 'utf8')))
@@ -162,7 +162,7 @@ it.each(['mail', 'records', 'late'] as const)('validates actual reference input 
   const lines: string[] = []
   const log = vi.spyOn(console, 'log').mockImplementation(value => lines.push(String(value)))
   try { await p.ctx.plugin(Agents, { directory: join(p.root, 'run'), scenarioFile, project: 'cross-branch-project',
-    port: 0, refreshMs: 100, providerCallTimeoutMs: 1000, source: 'scripted', model: { provider: 'teams-probe', model: 'script' } }) }
+    port: 0, refreshMs: 100, providerCallTimeoutMs: 1000, source: 'scripted', clockMode, model: { provider: 'teams-probe', model: 'script' } }) }
   finally { log.mockRestore() }
   const launch = new URL(lines.find(line => line.startsWith('Mission Control: '))!.slice('Mission Control: '.length))
   const headers = { Authorization: `Bearer ${launch.hash.slice(1)}` }
@@ -287,7 +287,7 @@ it('continues a settled native child on new mail and rejects its obsolete Agent 
   expect(stale.isError).toBe(true)
 })
 
-it('waits for resource release in program code and notices already-completed work and unread mail', async () => {
+it('waits for resource release in program code and notices completed work and queued native mail', async () => {
   const p = await boot('greenhouse-wait-races', true, async () => ({ withoutScience: true }))
   probes.push(p)
   const scenario = scenarioSchema.parse(JSON.parse(readFileSync(new URL('./scenario.json', import.meta.url), 'utf8')))

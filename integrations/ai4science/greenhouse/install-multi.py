@@ -13,6 +13,8 @@ def main():
     parser.add_argument('--directory', type=pathlib.Path, required=True)
     parser.add_argument('--scenario', type=pathlib.Path)
     parser.add_argument('--mode', choices=['single-agent', 'multi-agent'], default='multi-agent')
+    parser.add_argument('--clock-mode', choices=['event-driven', 'timer'], default='event-driven')
+    parser.add_argument('--idle-review-ticks', type=int, default=30, help='Virtual review interval, not a runtime limit')
     parser.add_argument('--source', choices=['scripted', 'real-model'], required=True)
     parser.add_argument('--base-url', default='https://chat.intern-ai.org.cn/api/v1/')
     parser.add_argument('--api-key-env', default='INTERN_API_KEY')
@@ -32,6 +34,8 @@ def main():
         parser.error('--direct-interface and --direct-address must be supplied together')
     if not 0 <= args.port <= 65535:
         parser.error('--port must be 0..65535')
+    if args.idle_review_ticks < 1:
+        parser.error('--idle-review-ticks must be positive')
     here = pathlib.Path(__file__).resolve().parent
     repo = here.parents[2]
     directory = args.directory.resolve()
@@ -72,7 +76,7 @@ def main():
         rows.append({'id': 'llm-pi-ai', 'name': str(repo / 'packages/llm/llm-pi-ai/src/index.ts'), 'config': {'providers': {
             'intern-greenhouse': {'api': 'openai-completions', 'baseURL': args.base_url,
                 'apiKeyEnv': args.api_key_env, 'timeoutMs': 180000, 'streamIdleTimeoutMs': 180000,
-                'retryPolicy': {'mode': 'normal', 'maxRetries': 2, 'backoff': {'initialDelayMs': 1000, 'maxDelayMs': 10000, 'jitterRatio': 0.2}},
+                'retryPolicy': {'mode': 'always', 'backoff': {'initialDelayMs': 1000, 'maxDelayMs': 10000, 'jitterRatio': 0.2}},
                 'compat': {'supportsStore': False, 'supportsDeveloperRole': False, 'supportsReasoningEffort': False, 'maxTokensField': 'max_tokens'},
                 'models': [{'id': 'intern-s2', 'name': 'intern-s2', 'contextWindow': 256000, 'maxTokens': 8192}]},
         }}})
@@ -96,6 +100,7 @@ def main():
     rows.append({'id': 'greenhouse-agents', 'name': str(here / 'agents.ts'), 'config': {
         'directory': str(directory), 'scenarioFile': str(scenario), 'project': 'mars-greenhouse',
         'mode': args.mode, 'port': args.port, 'refreshMs': 100, 'providerCallTimeoutMs': 10000, 'source': args.source, 'model': model,
+        'clockMode': args.clock_mode, 'idleReviewTicks': args.idle_review_ticks,
         **({'providerPool': list(profiles)} if args.source == 'real-model' else {}),
         **({'comparisonFile': str(args.comparison_file.resolve())} if args.comparison_file else {}),
         **({'directTransport': {'origin': f'{endpoint.scheme}://{endpoint.netloc}',
@@ -111,6 +116,7 @@ def main():
     for filename, content in sources.items():
         (snapshot / filename).write_bytes(content)
     record = {'source': str(here), 'directory': str(directory), 'modelSource': args.source,
+              'clockPolicy': {'mode': args.clock_mode, 'idleReviewTicks': args.idle_review_ticks},
               'scenario': str(scenario), 'profile': profile_name,
               'transportPolicy': rows[-1]['config'].get('directTransport'),
               'sourceHashes': {filename: hashlib.sha256(content).hexdigest() for filename, content in sources.items()},

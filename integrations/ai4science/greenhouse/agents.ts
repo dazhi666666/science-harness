@@ -27,6 +27,7 @@ export const inject = ['agents', 'subagents', 'tools', 'systemPrompt', 'llm', 's
 const configSchema = z.object({
   mode: z.enum(['single-agent', 'multi-agent']).optional(),
   directory: z.string().min(1), scenarioFile: z.string().min(1), project: z.string().min(1),
+  clockMode: z.enum(['timer', 'event-driven']).default('event-driven'), idleReviewTicks: z.number().int().positive().default(30),
   port: z.number().int().min(0).max(65535), refreshMs: z.number().int().min(100).max(60000),
   providerCallTimeoutMs: z.number().int().positive(), source: z.enum(['scripted', 'real-model']),
   providerPool: z.array(z.string().min(1)).min(1).optional(),
@@ -34,7 +35,7 @@ const configSchema = z.object({
   directTransport: directTransportSchema.optional(),
   model: z.object({ provider: z.string().min(1), model: z.string().min(1), maxTokens: z.number().int().positive().optional() }).strict(),
 }).strict()
-export type Config = z.infer<typeof configSchema>
+export type Config = z.input<typeof configSchema>
 const common = `这是火星温室的执行与协作实验，不评分科研结论。所有操作必须使用真实工具和真实返回的标识，不能用文字宣称执行完成。\n标识分两类：lab_complete.task_id 使用分派返回的 Router ID（如 T1）；greenhouse_sample.taskId、greenhouse_analyze.taskId、greenhouse_history.task_id 使用 greenhouse_observe.tasks 的实验 ID（如 light-A）。\n使用结构化参数；每个新动作使用包含自己角色的唯一 requestKey，重试同一动作保持相同键与参数。通过 greenhouse_result 读取实际输出，从输出获取 sampleId 和 assay ID。\n持续值守也是任务：按 operatingRange 维持负责种植舱的温度和水分；读数异常先巡检，确认传感器偏移后校准，真实缺水则灌溉。实验交付后仍处理环境通知与新实验。\n共享机器人、检测设备、计算和供水；资源忙时先读取正在运行的操作，再 greenhouse_wait 等待变化，不能连续重复提交。供电不足时与其他成员协商降低负载；未知操作不能当作失败重做。\n每次收到新工作消息先 lab_inbox 读取并留下回执，再执行动作。lab_status 查看团队任务和成员；lab_message 给具名成员发送工作消息和实际结果引用。投递接受不代表对方已经处理。\n没有任务或正在等待时使用 greenhouse_wait(after_seq=greenhouse_observe 返回的 eventCursor，等待具体操作时同时填写 operation_id)，信箱消息也会提前唤醒。待办、操作和结果保存在工具中；压缩后用 greenhouse_history(task_id=任务标识) 找回真实操作 ID，再用 greenhouse_result 读取结果。不要反复读取全部历史。`
 
 /** Mount a lead and three continuable chamber coordinators through native Harness creation.
@@ -87,7 +88,8 @@ export async function mountMultiAgent(ctx: Context, input: Config) {
   try { collaboration = new GreenhouseCollaboration(ctx, org, runtime.engine, runtime.world, admin, join(config.directory, 'router', 'board.json'), mode) }
   catch (error) { abort.abort(error); throw error }
   const team = collaboration
-  runtime.engine.recordFact(admin, 'greenhouse-run-config', { mode, source, providerPool, model: z.json().parse(JSON.parse(JSON.stringify(model))), scenarioHash: runtime.world.scenarioHash })
+  runtime.engine.recordFact(admin, 'greenhouse-run-config', { mode, source, clockMode: config.clockMode,
+    idleReviewTicks: config.idleReviewTicks, providerPool, model: z.json().parse(JSON.parse(JSON.stringify(model))), scenarioHash: runtime.world.scenarioHash })
   installOrganizationTools(ctx, org)
   const grants = new WeakMap<Agent, OperationContext>()
   const access = (agent: Agent, tool: string) => {
@@ -105,7 +107,7 @@ export async function mountMultiAgent(ctx: Context, input: Config) {
     const context = grants.get(agent)
     if (context) runtime.engine.revokeContext(context)
   })
-  installGreenhouseTools(ctx, runtime, access, abort.signal, config.refreshMs, agent => team.hasUnread(agent))
+  installGreenhouseTools(ctx, runtime, access, abort.signal, config.refreshMs)
   const register = (name: string, description: string, parameters: ParameterSchemaSpec,
     body: (agent: Agent, args: Record<string, unknown>, signal: AbortSignal) => unknown | Promise<unknown>) => {
     ctx.tools.register(defineTool({ name, description, parameters,
@@ -166,12 +168,15 @@ export async function mountMultiAgent(ctx: Context, input: Config) {
   })
   ctx.on('tools/execute', async (exec, next) => {
     if (!exec.agent || (exec.agent.id !== rootId && exec.agent.session.header.parentSession !== rootId)) return next()
-    const result = await next()
-    if (result.isError) metrics.toolErrors++
-    runtime.engine.recordFact(admin, 'greenhouse-tool-result', { actorId: exec.agent.id, name: exec.name,
-      callId: exec.callId, isError: result.isError, result: z.json().parse(JSON.parse(JSON.stringify(result.isError ? result.error : result.value))) })
-    await ctx.sessionPersistence.flush()
-    return result
+    const finish = runtime.clock.toolStarted(exec.agent.id)
+    try {
+      const result = await next()
+      if (result.isError) metrics.toolErrors++
+      runtime.engine.recordFact(admin, 'greenhouse-tool-result', { actorId: exec.agent.id, name: exec.name,
+        callId: exec.callId, isError: result.isError, result: z.json().parse(JSON.parse(JSON.stringify(result.isError ? result.error : result.value))) })
+      await ctx.sessionPersistence.flush()
+      return result
+    } finally { finish() }
   })
   ctx.on('agent/error', ({ agent, turn, step, error }) => {
     if (abort.signal.aborted || (agent.id !== rootId && agent.session.header.parentSession !== rootId)) return
@@ -188,18 +193,21 @@ export async function mountMultiAgent(ctx: Context, input: Config) {
     metrics.requests++
     routeMetrics.requests++
     runtime.engine.recordFact(admin, 'greenhouse-model-request', { number: metrics.requests, provider: options.provider, model: options.model, source })
-    for await (const chunk of next()) {
-      if (chunk.type === 'usage') {
-        metrics.inputTokens += chunk.usage.inputTokens + (chunk.usage.cacheReadTokens ?? 0) + (chunk.usage.cacheWriteTokens ?? 0)
-        metrics.outputTokens += chunk.usage.outputTokens
-        routeMetrics.inputTokens += chunk.usage.inputTokens + (chunk.usage.cacheReadTokens ?? 0) + (chunk.usage.cacheWriteTokens ?? 0)
-        routeMetrics.outputTokens += chunk.usage.outputTokens
-        runtime.engine.recordFact(admin, 'greenhouse-model-usage', z.json().parse({ ...chunk.usage,
-          provider: options.provider, model: options.model, purpose: options.purpose ?? 'conversation' }))
+    const finish = runtime.clock.modelStarted()
+    try {
+      for await (const chunk of next()) {
+        if (chunk.type === 'usage') {
+          metrics.inputTokens += chunk.usage.inputTokens + (chunk.usage.cacheReadTokens ?? 0) + (chunk.usage.cacheWriteTokens ?? 0)
+          metrics.outputTokens += chunk.usage.outputTokens
+          routeMetrics.inputTokens += chunk.usage.inputTokens + (chunk.usage.cacheReadTokens ?? 0) + (chunk.usage.cacheWriteTokens ?? 0)
+          routeMetrics.outputTokens += chunk.usage.outputTokens
+          runtime.engine.recordFact(admin, 'greenhouse-model-usage', z.json().parse({ ...chunk.usage,
+            provider: options.provider, model: options.model, purpose: options.purpose ?? 'conversation' }))
+        }
+        if (chunk.type === 'finish' && chunk.reason.kind === 'error') { metrics.modelErrors++; routeMetrics.modelErrors++ }
+        yield chunk
       }
-      if (chunk.type === 'finish' && chunk.reason.kind === 'error') { metrics.modelErrors++; routeMetrics.modelErrors++ }
-      yield chunk
-    }
+    } finally { finish() }
   })
   let closing: Promise<void> | undefined
   const close = () => (closing ??= (async () => {
@@ -226,9 +234,31 @@ export async function mountMultiAgent(ctx: Context, input: Config) {
       phase = 'attention-required'
       runtime.engine.recordFact(admin, 'greenhouse-notification-failed', { message: error.message })
       console.error(`Greenhouse notification failed: ${error.message}`)
-    })
+    }, config.clockMode !== 'event-driven')
     root.agent.followup(createUserMessage({ source: { kind: 'greenhouse-coordination', form: 'notice', summary: 'Start greenhouse team' },
       content: [{ type: 'text', text: mode === 'single-agent' ? 'ACTOR lead\n你是本轮唯一 Agent。读取 greenhouse_observe 和 lab_status，自行登记并完成全部实验，持续处理环境变化。' : 'ACTOR lead\n团队已创建。读取 greenhouse_observe 与 lab_status，把当前实验分派给对应舱的成员，协调参考结果、共享资源和新增任务。' }] }))
+    if (config.clockMode === 'event-driven') {
+      const expected = [...runtime.world.scenario.tasks.map(task => task.id),
+        ...runtime.world.scenario.events.flatMap(event => event.kind === 'task' ? [event.task.id] : [])]
+      runtime.clock.attach(() => {
+        if (abort.signal.aborted || phase !== 'running') return false
+        const snapshot = team.snapshot(), world = runtime.world.observe()
+        if (expected.every(id => world.completedTasks.includes(id)) && snapshot.tasks.every(task => task.status === 'done')
+          && !world.activeOperations.length) return false
+        return snapshot.members.every(member => {
+          const agent = ctx.agents.get(member.id)
+          if (agent?.status === 'running') return runtime.clock.blocked(member.id)
+          if (agent && (agent.inbox.nextStep.length || agent.inbox.nextTurn.length)) return false
+          const pending = snapshot.tasks.some(task => task.status !== 'done'
+            && (member.name === 'lead' || task.assignee === member.name))
+          const unassigned = member.name === 'lead' && world.tasks.some(task => !snapshot.tasks.some(assignment => assignment.title === task.id))
+          return !pending && !unassigned
+        })
+      }, () => dispatcher!.flush())
+      ctx.on('agent/status', ({ agent }) => {
+        if (agent.id === rootId || agent.session.header.parentSession === rootId) runtime.clock.wake()
+      })
+    }
     return { runtime, org, team, root: root.agent, access, close, metrics, dispatcher }
   } catch (error) { await close(); throw error }
 }

@@ -23,7 +23,7 @@ Ctrl+C 停止当前宿主的时钟和监听器，不删除状态。重新启动�
 
 ## 模拟与操作
 
-[scenario.json](scenario.json) 定义初始数值、操作耗时、变化系数、任务要求和预设扰动。内置演示每一秒推进一个模拟分钟。分钟对分钟的真实时长实验应另存场景，将 `tickMs` 改为 60000，并使用全新运行目录。时钟独立于查询推进，每个设备目录只有一个时钟拥有者。不设置总 token、请求次数或运行时长上限。
+[scenario.json](scenario.json) 定义初始数值、虚拟操作时长、变化系数、任务要求和预设扰动。任务延迟、操作时长、资源占用与环境变化均以模拟步为时间基准。Agent profile 默认使用 `clockMode: event-driven`：模型生成、可执行决策及结果持久化期间虚拟时间保持不动；所有成员均在等待后，直接推进到下一次设备完成、预设扰动或传感器可见变化。安静区间由 `idleReviewTicks`（默认 30）提供虚拟复查事件；事件投递完成后才继续推进。仅环境 profile 保留定时模式，此时 `tickMs` 控制宿主推进节奏；两种模式都不把评测时间映射到本机日期时间。查询不会推进时钟，每个设备目录只有一个时钟拥有者。不设置总 token、请求次数或运行时长上限。
 
 操作包括 `light`、`temperature`、`water`、`inspect`、`calibrate`、`sample`、`assay` 和 `analyze`；JSON 字段由 [schema.ts](schema.ts) 定义。它们使用公开 Provider 协议；模拟操作的金额预算计费为零，但记录实际动作和资源使用。水量与电力是场景资源，不是模型消耗上限。本基础版本尚无补水动作。
 
@@ -64,7 +64,7 @@ python3 integrations/ai4science/greenhouse/install-multi.py --home .ai4science/g
 DSH_HOME="$PWD/.ai4science/greenhouse-team/home" pnpm dsh --profile greenhouse-multi-scripted
 ```
 
-该 profile 使用[明确的三任务基线](fixtures/baseline.scenario.json)，关闭预设扰动。脚本适配器读取真实工具结果，将 B 的检测引用交给 C，并显式读取完成通知；生产模型 token 用量记为零。前端明确标识脚本模式，展示真实成员、分派、信箱回执和操作。它不是书生评测，也不能证明长期温室值守、上下文压缩质量或多 Agent 优势。固定基线任务结束后环境仍推进，但脚本成员不自主持续维护水分。
+该 profile 使用[明确的三任务基线](fixtures/baseline.scenario.json)，关闭预设扰动。脚本适配器读取真实工具结果，将 B 的检测引用交给 C，并显式读取完成通知；生产模型 token 用量记为零。前端明确标识脚本模式，展示真实成员、分派、信箱回执和操作。它不是书生评测，也不能证明长期温室值守、上下文压缩质量或多 Agent 优势。事件模式下，所有声明任务与 Router 交付完成且没有活跃设备操作后，推进暂停；宿主保持可用，直至拥有者停止。定时模式继续推进环境变化。脚本成员不具备通用持续值守能力。
 
 独立核验持久快照：
 
@@ -78,7 +78,7 @@ python3 integrations/ai4science/greenhouse/verify.py .ai4science/greenhouse-team
 
 `install-multi.py --source real-model` 生成书生 profile，保守声明 256000 token 上下文，并配置容量前触发的原生压缩。`--base-url` 选择官方接口，`--api-key-env` 选择主凭据引用，重复的 `--extra-key-env` 参数将其他凭据加入同一请求池。单／多 Agent 都在原生请求准备阶段轮换 Provider 路由，实际路由保存在 Session 请求头中。模型请求、输入／输出 token 和错误按全局及各路由记录，凭据本身不进入这些记录。token 计量包含接口报告的缓存用量与推理输出，但失败请求可能计费而未返回用量。不按额度调度，也不设置消耗上限。原生压缩默认跟随最近的模型路由，因此摘要请求也可以使用凭据池中的路由。
 
-真实模型 profile 同时加载原生 `llm-retry` 执行器与 Provider 重试设置。临时请求失败会重试失败的原生步骤，保留已经完成的工具效果与持久重试事件。Agent 终止性失败会让前端报告需要处理；宿主仍存活不代表实验成功。单请求接口故障检测、输出容量与整轮消耗上限不同。
+真实模型 profile 同时加载原生 `llm-retry` 执行器与 Provider 重试设置。生成策略使用原生 `retryPolicy.mode: always`：失败的原生步骤持续退避重试，直至成功或拥有者取消／卸载，不设置总重试次数上限，保留已经完成的工具效果与持久重试事件。Agent 终止性失败会让前端报告需要处理；宿主仍存活不代表实验成功。单请求接口故障检测、输出容量与整轮消耗上限不同。
 
 `--direct-interface` 与 `--direct-address` 一起使用时，为模型源站选择本地源地址与公开 DNS 解析的 IPv4，保留 TLS 主机名验证。拥有 Agent 的插件在创建任何 Agent 之前安装传输设置；独立插件的列表顺序不保证初始化先后。该可选的本地 TUN 代理绕过方式不修改系统设置。每次新连接会重新读取物理网卡地址；网卡暂时丢失时拒绝该请求，DNS 解析异步返回，使 socket 绑定错误能进入请求处理器。启动时网卡不可用仍会失败。模型源站的公开 DNS 变化后，须刷新 `--direct-address`。macOS 上，在模型请求活跃时运行 `audit-network.py <runtime-directory>`：它查找实际持有环境时钟的进程，通过 `nettop` 记录模型 Socket 的真实网卡。配置日志不能独自证明直连；空闲进程的观测只表示证据不足。对照要求两轮传输设置相同，并且都观察到实际直连网卡。
 

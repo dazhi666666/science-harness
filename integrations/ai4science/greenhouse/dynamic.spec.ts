@@ -59,7 +59,7 @@ it('wakes settled members for power, sensor and new-task events and executes the
   for (const chamber of ['A', 'B', 'C']) p.model.queue(`chamber-${chamber}`, textResponse('Ready for environmental work.'))
   const log = vi.spyOn(console, 'log').mockImplementation(() => {})
   let run: Awaited<ReturnType<typeof mountMultiAgent>>
-  try { run = await mountMultiAgent(p.ctx, { directory: join(p.root, 'run'), scenarioFile,
+  try { run = await mountMultiAgent(p.ctx, { directory: join(p.root, 'run'), scenarioFile, clockMode: 'timer',
     project: 'cross-branch-project', port: 0, refreshMs: 100, providerCallTimeoutMs: 1000,
     source: 'scripted', model: { provider: 'teams-probe', model: 'script' } }) }
   finally { log.mockRestore() }

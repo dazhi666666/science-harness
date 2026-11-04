@@ -69,7 +69,7 @@ it('keeps accepted work across controller exit and reconnects without repeating 
   vi.useFakeTimers()
   const clock = new GreenhouseClock(world, error => { throw error })
   try { vi.advanceTimersByTime(world.scenario.tickMs * 6) }
-  finally { clock.close(); vi.useRealTimers() }
+  finally { await clock.close(); vi.useRealTimers() }
   const second = new ExecutionEngine(options)
   await second.open(); cleanups.push(() => second.close())
   const context = second.issueContext('p', 'replacement-agent', ['greenhouse'])
