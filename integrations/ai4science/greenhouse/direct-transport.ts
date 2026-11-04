@@ -2,7 +2,7 @@
 import { networkInterfaces } from 'node:os'
 import { isIP } from 'node:net'
 import type { Context } from '@deepseek-ai/cordis'
-import { Agent, Dispatcher, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
+import { Agent, Dispatcher, buildConnector, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 import { z } from 'zod'
 
 export const name = 'greenhouse-direct-transport'
@@ -21,15 +21,29 @@ export function apply(ctx: Context, input: Config): void {
   const url = new URL(config.origin)
   if (url.protocol !== 'https:' || url.origin !== config.origin || url.username || url.password)
     throw new Error('Direct model routing requires an HTTPS origin without credentials or a path')
-  const localAddress = networkInterfaces()[config.interface]?.find(item => item.family === 'IPv4' && !item.internal)?.address
+  const interfaceAddress = () => networkInterfaces()[config.interface]?.find(item => item.family === 'IPv4' && !item.internal)?.address
+  const localAddress = interfaceAddress()
   if (!localAddress) throw new Error(`Physical IPv4 interface unavailable: ${config.interface}`)
   ctx.effect(() => {
     const previous = getGlobalDispatcher()
-    const direct = new Agent({ localAddress, connect: { lookup(hostname, options, callback) {
-      if (hostname !== url.hostname) return callback(new Error('Unexpected direct model hostname'), '', 4)
-      if (options.all) callback(null, [{ address: config.address, family: 4 }])
-      else callback(null, config.address, 4)
-    } } })
+    const connect = buildConnector({ lookup(hostname, options, callback) {
+      // Socket error listeners must be installed before lookup completion can emit a bind error.
+      queueMicrotask(() => {
+        if (hostname !== url.hostname) return callback(new Error('Unexpected direct model hostname'), '', 4)
+        if (options.all) callback(null, [{ address: config.address, family: 4 }])
+        else callback(null, config.address, 4)
+      })
+    } })
+    const direct = new Agent({ connect(options, callback) {
+      const address = interfaceAddress()
+      if (!address) {
+        const error: NodeJS.ErrnoException = new Error(`Physical IPv4 interface unavailable: ${config.interface}`)
+        error.code = 'ENETUNREACH'
+        queueMicrotask(() => callback(error, null))
+        return
+      }
+      connect({ ...options, localAddress: address }, callback)
+    } })
     const scoped = new class extends Dispatcher {
       override dispatch(options: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandler): boolean {
         return (String(options.origin) === config.origin ? direct : previous).dispatch(options, handler)
