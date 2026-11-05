@@ -19,7 +19,7 @@ Open the printed `Mission Control: http://127.0.0.1:2300/#<token>` link. The tok
 | `SCIENCE_CONFIG` | bundled synthetic example | AI4Science platform JSON; `off` disables the science side |
 | `AGENT_ROUTER_DATA_DIR` | `integrations/agent-router/data` | router run data |
 
-Either side may fail to open; the page then shows it offline instead of refusing to start. Native greenhouse profiles show the mounted team independently of the Router CLI link.
+Either side may fail to open; the page then shows it offline instead of refusing to start.
 
 ## Views
 

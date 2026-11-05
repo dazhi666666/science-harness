@@ -19,7 +19,7 @@ pnpm dsh --profile web --patch integrations/mission-control/mission-control.patc
 | `SCIENCE_CONFIG` | 内置合成示例 | AI4Science 平台 JSON；`off` 关闭科学侧 |
 | `AGENT_ROUTER_DATA_DIR` | `integrations/agent-router/data` | 编排运行数据 |
 
-任一侧打开失败时，页面把该侧显示为离线，而不是拒绝启动。原生温室 profile 独立显示团队已挂载状态，不依赖 Router CLI 链路。
+任一侧打开失败时，页面把该侧显示为离线，而不是拒绝启动。
 
 ## 视图
 

@@ -16,16 +16,10 @@ export interface Upstreams {
   science?: { url: string; token: string }
   /** Why the science side is unavailable, shown in the page. */
   scienceError?: string
-  /** Read-only greenhouse snapshot, shared with the owning runtime; never includes simulator truth. */
-  greenhouse?: { snapshot(after: number): unknown }
-  /** Read-only laboratory state and committed events from the owning runtime. */
-  laboratory?: { snapshot(after: number): unknown }
 }
 
 const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
-  ['/laboratory.js', ['laboratory.js', 'text/javascript; charset=utf-8']],
-  ['/greenhouse.js', ['greenhouse.js', 'text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/fx.js', ['fx.js', 'text/javascript; charset=utf-8']],
   ['/i18n.js', ['i18n.js', 'text/javascript; charset=utf-8']],
@@ -94,23 +88,7 @@ export async function startMissionControl(upstreams: Upstreams, options: { port:
         science: !!upstreams.science,
         router: !!upstreams.router,
         scienceError: upstreams.scienceError ?? null,
-        greenhouse: !!upstreams.greenhouse,
-        laboratory: !!upstreams.laboratory,
       })
-    if (url.pathname === '/mc/greenhouse') {
-      if (req.method !== 'GET') return json(res, 405, { error: 'Read-only greenhouse endpoint' })
-      if (!upstreams.greenhouse) return json(res, 503, { error: 'Greenhouse is not mounted' })
-      const after = Number(url.searchParams.get('after') ?? '0')
-      if (!Number.isSafeInteger(after) || after < 0) return json(res, 400, { error: 'Invalid event cursor' })
-      return json(res, 200, upstreams.greenhouse.snapshot(after))
-    }
-    if (url.pathname === '/mc/laboratory') {
-      if (req.method !== 'GET') return json(res, 405, { error: 'Read-only laboratory endpoint' })
-      if (!upstreams.laboratory) return json(res, 503, { error: 'Laboratory is not mounted' })
-      const after = Number(url.searchParams.get('after') ?? '0')
-      if (!Number.isSafeInteger(after) || after < 0) return json(res, 400, { error: 'Invalid event cursor' })
-      return json(res, 200, upstreams.laboratory.snapshot(after))
-    }
     if (url.pathname.startsWith('/router/')) {
       if (!upstreams.router) return json(res, 503, { error: 'Agent Router is not mounted' })
       req.url = url.pathname.slice('/router'.length) + url.search
