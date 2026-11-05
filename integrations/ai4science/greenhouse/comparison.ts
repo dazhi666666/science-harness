@@ -13,6 +13,14 @@ const runSchema = z.object({
   compactionEvents: z.record(z.string(), count), failedCompactions: count,
   clockPolicy: z.object({ mode: z.enum(['timer', 'event-driven']), idleReviewTicks: count }).optional(),
   taskLatencyTicks: z.record(z.string(), count).optional(),
+  observations: z.object({
+    resources: z.object({ throughTick: count, anyOperationBusyTicks: count,
+      twoOrMoreOperationsBusyTicks: count, peakConcurrentOperations: count,
+      byResource: z.record(z.string(), z.object({ busyTicks: count, overlappingExclusiveOperationTicks: count })) }),
+    repeats: z.object({ additionalSameSampleAssays: count, additionalSameTaskAnalyses: count,
+      identicalActionToolCallRepeats: count, requestKeysUsedWithDifferentArguments: count, invalidJsonToolArguments: count }),
+    compactionContinuity: z.object({ pendingTaskOpportunities: count, verifiedPendingTaskClosures: count }),
+  }).optional(),
 })
 const reportSchema = z.object({ scope: z.literal('descriptive-pair'), comparisonReady: z.boolean(),
   matchingChecks: z.record(z.string(), z.boolean()), single: runSchema, multi: runSchema,

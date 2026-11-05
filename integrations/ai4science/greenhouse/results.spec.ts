@@ -18,6 +18,13 @@ it('serves only a saved comparison and separates shared reads from direct peer i
         peerMessageBeforeAnalysis: false, routerMessageBeforeAnalysis: false, sharedResultReadBeforeAnalysis: true }] },
     perRoute: { fixture: { requests: 10, inputTokens: 0, outputTokens: 0 } }, actualRequestRetries: 0,
     operatorSubmittedOperations: 0, allTaskCompletionTick: 40, compactionEvents: {}, failedCompactions: 0,
+    observations: {
+      resources: { throughTick: 40, anyOperationBusyTicks: 30, twoOrMoreOperationsBusyTicks: 12, peakConcurrentOperations: 2,
+        byResource: { 'greenhouse:robot': { busyTicks: 20, overlappingExclusiveOperationTicks: 0 } } },
+      repeats: { additionalSameSampleAssays: 0, additionalSameTaskAnalyses: 1, identicalActionToolCallRepeats: 0,
+        requestKeysUsedWithDifferentArguments: 1, invalidJsonToolArguments: 0 },
+      compactionContinuity: { pendingTaskOpportunities: 1, verifiedPendingTaskClosures: 1, events: [{ privateDetail: 'not-for-display' }] },
+    },
     installation: { privateDetail: 'not-for-display', modelPolicy: [{}, { thresholdRatio: 0.04 }] } }
   const report = { scope: 'descriptive-pair', comparisonReady: false, matchingChecks: { both_real_model: false },
     single: run, multi: { ...run, mode: 'multi-agent' }, scientificQuality: 'not-assessed', architectureAdvantage: 'not-assessed' }
@@ -35,7 +42,9 @@ it('serves only a saved comparison and separates shared reads from direct peer i
   const headers = { Authorization: `Bearer ${launch.hash.slice(1)}` }
   const snapshot = await (await fetch(`${launch.origin}/mc/greenhouse`, { headers })).json()
   expect(snapshot).toMatchObject({ mode: 'saved-report', experiment: null, events: [], comparison: {
-    comparisonReady: false, multi: { compactionThresholdRatio: 0.04,
+    comparisonReady: false, multi: { compactionThresholdRatio: 0.04, observations: {
+      resources: { twoOrMoreOperationsBusyTicks: 12 }, repeats: { additionalSameTaskAnalyses: 1 },
+      compactionContinuity: { verifiedPendingTaskClosures: 1 } },
       verification: { referenceEvidence: [{ peerMessageBeforeAnalysis: false, sharedResultReadBeforeAnalysis: true }] } } } })
   expect(JSON.stringify(snapshot)).not.toContain('not-for-display')
   expect((await fetch(`${launch.origin}/mc/greenhouse`, { method: 'POST', headers })).status).toBe(405)
@@ -43,6 +52,10 @@ it('serves only a saved comparison and separates shared reads from direct peer i
   writeFileSync(file, JSON.stringify(report))
   expect((await (await fetch(`${launch.origin}/mc/greenhouse`, { headers })).json()).comparison.single.verification.referenceEvidence[0].referenceInputObserved).toBe(true)
   run.installation.modelPolicy[1]!.thresholdRatio = -1
+  writeFileSync(file, JSON.stringify(report))
+  expect(() => Results.readResults(file)).toThrow()
+  run.installation.modelPolicy[1]!.thresholdRatio = 0.04
+  run.observations.resources.peakConcurrentOperations = -1
   writeFileSync(file, JSON.stringify(report))
   expect(() => Results.readResults(file)).toThrow()
 })

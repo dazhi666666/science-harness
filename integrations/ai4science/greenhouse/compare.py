@@ -6,6 +6,7 @@ import hashlib
 import json
 import pathlib
 from verify import read_database, verify
+from observations import observe
 
 
 def collect(directory, offline=False, sessions=None):
@@ -100,6 +101,7 @@ def collect(directory, offline=False, sessions=None):
             'networkAudit': {'verified': network_verified, 'observations': audits},
             'timeReference': 'simulation-ticks',
             'verification': verification, 'perRoute': per_route, 'actualRequestRetries': retries,
+            'observations': observe(directory, offline=offline, sessions=sessions),
             'usageSource': 'native-session-events' if legacy_usage else 'execution-usage-facts',
             'ownerStop': owner_stop,
             'operatorSubmittedOperations': interventions,

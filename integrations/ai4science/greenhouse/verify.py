@@ -153,8 +153,13 @@ def verify(directory, sessions=None, offline=False):
                 continue
             for output in value['outputs']:
                 result = output['data'].get('result')
-                if isinstance(result, dict) and result.get('id') == 'assay:' + operation['id']:
+                if not isinstance(result, dict):
+                    continue
+                command = json.loads(operations[operation['id']]['input_json'])
+                if command.get('action') == 'assay' and result.get('id') == 'assay:' + operation['id']:
                     reads.append((index, result['id']))
+                elif command.get('action') == 'analyze' and result.get('taskId') == command.get('taskId') and result.get('assayIds') == command.get('assayIds'):
+                    reads.extend((index, identifier) for identifier in result['assayIds'])
         result_reads[role] = reads
 
     reference_evidence = []

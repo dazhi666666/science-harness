@@ -581,3 +581,18 @@ Object.assign(EN, {
   '任务与交付核验': 'Task and handoff verification', '通过': 'Passed', '尚未通过': 'Not yet passed',
   '分析耗时（秒）': 'Analysis latency (seconds)', '活动记录跨度（秒）': 'Activity record span (seconds)',
 })
+
+Object.assign(EN, {
+  '温湿度越界按舱×模拟步累计，供电按模拟步累计；重复成功操作只作描述性统计。': 'Temperature and moisture violations count chamber-ticks; power counts ticks. Repeated successful operations are descriptive only.',
+  '压缩后待办续接核验': 'Pending-task continuity after compaction',
+  '多操作并行模拟步': 'Ticks with multiple concurrent operations',
+  '峰值并行操作': 'Peak concurrent operations',
+  '机器人占用模拟步': 'Robot busy ticks',
+  '检测设备占用模拟步': 'Assay device busy ticks',
+  '同一样本额外成功检测': 'Additional successful assays of the same sample',
+  '同一任务额外成功分析': 'Additional successful analyses of the same task',
+  '重复动作工具调用': 'Repeated identical action-tool calls',
+  '模型生成与可执行决策期间虚拟时间保持不动；模拟步不衡量推理吞吐。': 'Virtual time holds during model generation and runnable decisions; ticks do not measure inference throughput.',
+  '共享读取包括检测产物和列出检测 ID 的已验证分析产物。': 'Shared reads include verified assay outputs and analysis outputs listing their assay IDs.',
+  '续接核验统计压缩前已收到且未交付的本人任务；次数不代表信息损失。': 'Continuity counts own assignments received but unfinished before compaction; counts do not establish information loss.',
+})

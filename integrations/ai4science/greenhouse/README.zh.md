@@ -72,7 +72,7 @@ DSH_HOME="$PWD/.ai4science/greenhouse-team/home" pnpm dsh --profile greenhouse-m
 python3 integrations/ai4science/greenhouse/verify.py .ai4science/greenhouse-team/run-20261103-v4
 ```
 
-核验器读取原生 Session 头、设备动作、执行结果、产物哈希、Router 分派与信箱回执。C 成功分析所用的 B 参考，必须在该分析之前通过经过身份核验的 Router 消息或成功的 `greenhouse_result` 读取进入其原生模型输入。两种模式遵循同一规则。`referenceEvidence` 记录实际观测到的通道，`directPeerReferenceBeforeEveryAnalysis` 单独报告直接成员消息的覆盖情况；共享结果读取不代表事前发生过直接私信。任务板消息必须与生产者写入的事实及已接受的原生投递对应。完成通知必须到达负责人的模型。
+核验器读取原生 Session 头、设备动作、执行结果、产物哈希、Router 分派与信箱回执。C 成功分析所用的 B 参考，必须在该分析之前通过经过身份核验的 Router 消息或成功的 `greenhouse_result` 读取进入其原生模型输入。已验证的检测产物，以及列出所用检测 ID 的已验证分析产物，都属于结果读取通道；分析产物必须与持久记录的任务及检测 ID 相符。两种模式遵循同一规则。`referenceEvidence` 记录实际观测到的通道，`directPeerReferenceBeforeEveryAnalysis` 单独报告直接成员消息的覆盖情况；共享结果读取不代表事前发生过直接私信。任务板消息必须与生产者写入的事实及已接受的原生投递对应。完成通知必须到达负责人的模型。
 
 显式信箱读取回执单独报告；原生输入投递不要求再调用一次 `lab_inbox`。核验器单独报告运行偏离指标，不评分科研论述或架构优越性。必需任务或记录尚未完成时核验可以失败；它不停止运行，也不改写证据。停止宿主后，可对已完成检查点的数据库使用 `--offline`；该显式声明不能用于活跃宿主，非空 WAL 文件会被拒绝。
 
@@ -112,6 +112,6 @@ python3 integrations/ai4science/greenhouse/verify.py .ai4science/greenhouse-sing
 
 使用已由 `compare.py --output` 写出的不可变 JSON 报告。`install.py --home <home> --report <report.json> --port 0` 安装 `greenhouse-report`，再用 `run.py --home <home> --profile greenhouse-report` 启动。该入口使用现有 Mission Control 界面，无需模型凭据，也不创建 Agent、执行数据库或环境时钟。它在启动时加载一份报告，保留来源标识和已记录的压缩阈值，并将参考输入通道与直接成员消息分开显示。报告缺失或格式错误会在启动时失败。未完成的已保存对照仍标为未完成；查看报告不代表确立架构优势。选择其他已保存文件前，先停止报告 profile。
 
-模式标识或成功的连通性检查，不能证明单／多 Agent 的实际效果、自然达到 256K 后的压缩或持续值守。使用[实验规程](experiments/README.zh.md)生成更长任务并比较独立核验的记录。安装器为每个全新运行保存源文件内容、哈希及实际模型／压缩设置。 安装后源码发生变化会在创建设备状态之前拒绝启动；重新安装尚未使用的 profile，记录新的输入。`--comparison-file` 在温室页面展示保存的评测配对，但不提供给 Agent；文件缺失表示等待报告，格式错误会让快照请求显式失败。两种模式都不增加总 token、请求次数或运行时长上限。
+模式标识或成功的连通性检查，不能证明单／多 Agent 的实际效果、自然达到 256K 后的压缩或持续值守。使用[实验规程](experiments/README.zh.md)生成更长任务并比较独立核验的记录。安装器为每个全新运行保存源文件内容、哈希及实际模型／压缩设置。 安装后源码发生变化会在创建设备状态之前拒绝启动；重新安装尚未使用的 profile，记录新的输入。`--comparison-file` 在温室页面展示保存的评测配对，但不提供给 Agent；文件缺失表示等待报告，格式错误会让快照请求显式失败。两种模式都不增加总 token、请求次数或运行时长上限。 保存的对照还通过 [observations.py](observations.py)，从现有记录推导资源占用、重复成功效果及压缩后已核验的任务交付。观测使用虚拟模拟步与原生 Session 事件顺序；工具调用重复与设备效果重复分别统计。
 
 `run.py` 只启动已安装的温室 `dsh` profile。提供 `--home`、`--profile`，并可通过 `--credentials-file` 指定使用普通 `NAME=value` 行的文件；值只复制到子进程环境，不做 shell 求值，也不打印。`--no-proxy` 只清理该进程的代理环境变量；profile 中的物理网卡直连配置负责绕过 TUN 代理。启动器不设置项目截止时间。

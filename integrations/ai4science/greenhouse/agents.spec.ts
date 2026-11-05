@@ -23,7 +23,7 @@ const toolResult = (options: GenerateOptions) => {
 }
 
 /** Script decisions read only actual rendered tool results, including mailbox-carried cross-branch assay IDs. */
-function worker(chamber: Chamber, channel: 'mail' | 'records' | 'late' = 'mail',
+function worker(chamber: Chamber, channel: 'mail' | 'records' | 'analysis-records' | 'late' | 'late-analysis-records' = 'mail',
   referenceOracle?: () => string | undefined, onAssay?: (id: string) => void, onLateRead?: () => void) {
   let ordinal = 0, consumed = '', lastName = '', lastArgs: Record<string, unknown> = {}, after = 0
   let assignment: string | undefined, operation: string | undefined, retry: { name: string; args: Record<string, unknown> } | undefined
@@ -50,7 +50,7 @@ function worker(chamber: Chamber, channel: 'mail' | 'records' | 'late' = 'mail',
       if (lastName === 'greenhouse_history') {
         const reference = z.object({ operations: z.array(z.object({ id: z.string(), state: z.string(),
           input: z.object({ action: z.string() }).passthrough() })) }).parse(value).operations
-          .find(entry => entry.state === 'succeeded' && entry.input.action === 'assay')
+          .find(entry => entry.state === 'succeeded' && entry.input.action === (channel.includes('analysis-records') ? 'analyze' : 'assay'))
         if (reference) return call('greenhouse_result', { operation_id: reference.id })
         return call('greenhouse_observe', {})
       }
@@ -95,7 +95,13 @@ function worker(chamber: Chamber, channel: 'mail' | 'records' | 'late' = 'mail',
           if (output.taskId === task) { assays.push(output.id); sampleId = undefined; onAssay?.(output.id) }
           else { references.push(output.id); if (completed) { lateRead = true; onLateRead?.() } }
         }
-        if (command.action === 'analyze') analysis = current.id
+        if (command.action === 'analyze') {
+          if (command.taskId === task) analysis = current.id
+          else {
+            references.push(...z.array(z.string()).parse(output.assayIds))
+            if (completed) { lateRead = true; onLateRead?.() }
+          }
+        }
       }
       if (lastName === 'lab_complete') completed = true
       if (lastName === 'lab_message') shared = true
@@ -113,9 +119,9 @@ function worker(chamber: Chamber, channel: 'mail' | 'records' | 'late' = 'mail',
     if (sampleId) return call('greenhouse_assay', { sampleId, requestKey: `${chamber}-assay-${sampled}` })
     if (sampled < 2) return call('greenhouse_sample', { chamber, taskId: task, requestKey: `${chamber}-sample-${sampled + 1}` })
     if (chamber === 'C' && !references.length) {
-      if (channel === 'records') return call('greenhouse_history', { task_id: 'water-B' })
+      if (channel === 'records' || channel === 'analysis-records') return call('greenhouse_history', { task_id: 'water-B' })
       // Negative control: C receives this actual ID outside its logged model input.
-      const hiddenReference = channel === 'late' ? referenceOracle?.() : undefined
+      const hiddenReference = channel.startsWith('late') ? referenceOracle?.() : undefined
       if (hiddenReference) references.push(hiddenReference)
       else {
         if (!inboxChecked) return call('lab_inbox', {})
@@ -126,13 +132,15 @@ function worker(chamber: Chamber, channel: 'mail' | 'records' | 'late' = 'mail',
     if (!analysis) return call('greenhouse_analyze', { taskId: task, assayIds: [...assays, ...references], requestKey: `${chamber}-analysis` })
     if (!completed) return call('lab_complete', { task_id: assignment, operation_id: analysis })
     if (chamber === 'B' && channel === 'mail' && !shared) return call('lab_message', { to: 'chamber-C', content: JSON.stringify({ assayIds: assays }) })
-    if (chamber === 'C' && channel === 'late' && !lateRead)
-      return call('greenhouse_result', { operation_id: references[0]!.slice('assay:'.length) })
+    if (chamber === 'C' && !lateRead) {
+      if (channel === 'late') return call('greenhouse_result', { operation_id: references[0]!.slice('assay:'.length) })
+      if (channel === 'late-analysis-records') return call('greenhouse_history', { task_id: 'water-B' })
+    }
     return textResponse(`${chamber}: real execution completed and accounted for.`)
   }
 }
 
-it.each((['mail', 'records', 'late'] as const).flatMap(channel => (['timer', 'event-driven'] as const).map(clockMode => ({ channel, clockMode }))))('validates reference input through $channel with $clockMode and reports communication separately', async ({ channel, clockMode }) => {
+it.each((['mail', 'records', 'analysis-records', 'late', 'late-analysis-records'] as const).flatMap(channel => (['timer', 'event-driven'] as const).map(clockMode => ({ channel, clockMode }))))('validates reference input through $channel with $clockMode and reports communication separately', async ({ channel, clockMode }) => {
   const p = await boot('greenhouse-native-multi', true, async () => ({ withoutScience: true }))
   probes.push(p)
   const scenario = scenarioSchema.parse(JSON.parse(readFileSync(new URL('./scenario.json', import.meta.url), 'utf8')))
@@ -206,16 +214,16 @@ it.each((['mail', 'records', 'late'] as const).flatMap(channel => (['timer', 'ev
   })
   const verify = () => spawnSync('python3', [fileURLToPath(new URL('./verify.py', import.meta.url)),
     join(p.root, 'run'), '--sessions', join(p.root, 'sessions')], { encoding: 'utf8' })
-  if (channel === 'late') await vi.waitFor(() => { expect(lateReferenceRead).toBe(true) })
+  if (channel.startsWith('late')) await vi.waitFor(() => { expect(lateReferenceRead).toBe(true) })
   await p.ctx.sessionPersistence.flush()
   const verified = verify()
-  expect(verified.status, verified.stdout + verified.stderr).toBe(channel === 'late' ? 1 : 0)
+  expect(verified.status, verified.stdout + verified.stderr).toBe(channel.startsWith('late') ? 1 : 0)
   const verification = JSON.parse(verified.stdout)
-  expect(verification).toMatchObject({ success: channel !== 'late', modelSources: ['scripted'], architectureAdvantage: 'not-assessed',
+  expect(verification).toMatchObject({ success: !channel.startsWith('late'), modelSources: ['scripted'], architectureAdvantage: 'not-assessed',
     directPeerReferenceBeforeEveryAnalysis: channel === 'mail' })
-  expect(verification.referenceEvidence[0]).toMatchObject({ referenceInputObserved: channel !== 'late',
-    peerMessageBeforeAnalysis: channel === 'mail', sharedResultReadBeforeAnalysis: channel === 'records' })
-  if (channel === 'late') expect(verification.checks.filter((check: { passed: boolean }) => !check.passed))
+  expect(verification.referenceEvidence[0]).toMatchObject({ referenceInputObserved: !channel.startsWith('late'),
+    peerMessageBeforeAnalysis: channel === 'mail', sharedResultReadBeforeAnalysis: channel === 'records' || channel === 'analysis-records' })
+  if (channel.startsWith('late')) expect(verification.checks.filter((check: { passed: boolean }) => !check.passed))
     .toEqual([{ name: 'reference_evidence_used_in_actual_analysis', passed: false }])
   const boardPath = join(p.root, 'run', 'router', 'board.json')
   const originalBoard = readFileSync(boardPath, 'utf8')
@@ -248,6 +256,45 @@ it.each((['mail', 'records', 'late'] as const).flatMap(channel => (['timer', 'ev
   const facts = p.trace.filter(event => event.stage === 'tool/result')
   expect(facts.length).toBeGreaterThan(0)
   p.report.greenhouse = { source: 'scripted', tasks: latest!.experiment.tasks, messages: latest!.experiment.messages }
+  if (channel === 'analysis-records') {
+    await p.close(); probes.splice(probes.indexOf(p), 1)
+    const invalid = spawnSync('python3', ['-c', `
+import sys,json,pathlib,shutil
+sys.path.insert(0,sys.argv[1])
+from verify import verify
+root=pathlib.Path(sys.argv[2])
+sessions=pathlib.Path(sys.argv[3])
+for field in ['taskId','assayIds']:
+ copy=root/('invalid-analysis-result-'+field)
+ shutil.copytree(sessions,copy)
+ changed=0
+ for file in copy.rglob('session.v4.jsonl'):
+  if file.parent.name!=sys.argv[4]:continue
+  rows=[json.loads(line) for line in file.open()]
+  calls={e['data']['callId']:e['data']['name'] for e in rows if e['type']=='tool/call'}
+  for e in rows:
+   if e['type']!='tool/result':continue
+   message=e['data']['message']
+   if calls.get(message['toolCallId'])!='greenhouse_result' or message.get('isError'):continue
+   body=json.loads(''.join(b['text'] for b in message['content'] if b['type']=='text'))
+   command=body['operation']['input']
+   if command.get('action')!='analyze' or command.get('taskId')!='water-B':continue
+   for output in body['outputs']:
+    output['data']['result'][field]='mismatched-task' if field=='taskId' else ['assay:unrecorded']
+   message['content']=[{'type':'text','text':json.dumps(body)}]
+   changed+=1
+  file.write_text(''.join(json.dumps(e)+'\\n' for e in rows))
+ assert changed>0
+ result=verify(root/'run',sessions=copy,offline=True)
+ assert not result['success']
+ assert not result['referenceEvidence'][0]['referenceInputObserved']
+ assert next(c['passed'] for c in result['checks'] if c['name']=='artifact_sizes_and_hashes')
+print(json.dumps({'mismatchedAnalysisTaskRejected':True,'mismatchedAnalysisAssayIdsRejected':True}))
+`, fileURLToPath(new URL('.', import.meta.url)), p.root, join(p.root, 'sessions'),
+    latest!.experiment.members.find(member => member.name === 'chamber-C')!.id], { encoding: 'utf8' })
+    expect(invalid.status, invalid.stdout + invalid.stderr).toBe(0)
+    expect(JSON.parse(invalid.stdout)).toEqual({ mismatchedAnalysisTaskRejected: true, mismatchedAnalysisAssayIdsRejected: true })
+  }
 })
 
 it('continues a settled native child on new mail and rejects its obsolete Agent object', async () => {

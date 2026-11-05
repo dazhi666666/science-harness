@@ -32,6 +32,14 @@ export function createGreenhouseView({ api, t, esc, num, available, openOperatio
       ['人工设备提交', run => num(run.operatorSubmittedOperations)],
       ['压缩摘要', run => num(run.compactionEvents['compaction/summary'] || 0)],
       ['压缩失败', run => num(run.failedCompactions)],
+      ['压缩后待办续接核验', run => run.observations ? `${num(run.observations.compactionContinuity.verifiedPendingTaskClosures)} / ${num(run.observations.compactionContinuity.pendingTaskOpportunities)}` : '—'],
+      ['多操作并行模拟步', run => run.observations ? num(run.observations.resources.twoOrMoreOperationsBusyTicks) : '—'],
+      ['峰值并行操作', run => run.observations ? num(run.observations.resources.peakConcurrentOperations) : '—'],
+      ['机器人占用模拟步', run => run.observations ? num(run.observations.resources.byResource['greenhouse:robot']?.busyTicks || 0) : '—'],
+      ['检测设备占用模拟步', run => run.observations ? num(run.observations.resources.byResource['greenhouse:assay']?.busyTicks || 0) : '—'],
+      ['同一样本额外成功检测', run => run.observations ? num(run.observations.repeats.additionalSameSampleAssays) : '—'],
+      ['同一任务额外成功分析', run => run.observations ? num(run.observations.repeats.additionalSameTaskAnalyses) : '—'],
+      ['重复动作工具调用', run => run.observations ? num(run.observations.repeats.identicalActionToolCallRepeats) : '—'],
       ['未闭合压缩记录', run => num(Math.max(0, (run.compactionEvents['compaction/start'] || 0) - (run.compactionEvents['compaction/end'] || 0)))],
     ]
     const checks = Object.values(report.matchingChecks)
@@ -39,7 +47,11 @@ export function createGreenhouseView({ api, t, esc, num, available, openOperatio
       <p class="kpi-note">${t('描述性记录，不自动判定架构优势')} · ${checks.filter(Boolean).length} / ${checks.length}</p>
       <p class="kpi-note">${t('时间基准：虚拟实验室模拟步；本机时间不参与评测。')}</p>
       <p class="kpi-note">${t('通道计数可能重叠；共享读取不代表事前成员通信。')}</p>
+      <p class="kpi-note">${t('模型生成与可执行决策期间虚拟时间保持不动；模拟步不衡量推理吞吐。')}</p>
+      <p class="kpi-note">${t('共享读取包括检测产物和列出检测 ID 的已验证分析产物。')}</p>
+      <p class="kpi-note">${t('续接核验统计压缩前已收到且未交付的本人任务；次数不代表信息损失。')}</p>
       <p class="kpi-note">${t('累计用量与越界记录对应各自观测窗口，请结合观测模拟步解读。')}</p>
+      <p class="kpi-note">${t('温湿度越界按舱×模拟步累计，供电按模拟步累计；重复成功操作只作描述性统计。')}</p>
       <table><thead><tr><th>${t('指标')}</th><th>${t('单 Agent')}</th><th>${t('多 Agent')}</th></tr></thead><tbody>${rows.map(([label, value]) => `<tr><td>${t(label)}</td><td>${esc(value(report.single))}</td><td>${esc(value(report.multi))}</td></tr>`).join('')}</tbody></table></section>`
   }
   function render() {

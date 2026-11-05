@@ -80,7 +80,7 @@ for file in (copy/'sessions').rglob('session.v4.jsonl'):
   if 'time' in event:event['time']=0
  file.write_text(''.join(json.dumps(event)+'\\n' for event in rows))
 changed=collect(copy,offline=True)
-keys=['verification','taskCompletionTick','taskLatencyTicks','allTaskCompletionTick','perRoute','compactionEvents','actualRequestRetries','sharedToolHash','scenarioHash']
+keys=['verification','taskCompletionTick','taskLatencyTicks','allTaskCompletionTick','perRoute','compactionEvents','actualRequestRetries','sharedToolHash','scenarioHash','observations']
 assert all(original[key]==changed[key] for key in keys)
 assert original['timeReference']==changed['timeReference']=='simulation-ticks'
 assert 'wallClock' not in original and 'wallClock' not in changed
