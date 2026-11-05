@@ -20,6 +20,7 @@ it('wakes settled members for power, sensor and new-task events and executes the
   const scenarioFile = join(p.root, 'scenario.json'); writeFileSync(scenarioFile, JSON.stringify(scenario))
   let count = 0, consumed = '', last = '', pending: 'power' | undefined, extraId = ''
   const leadPolicy = (options: GenerateOptions): StreamChunk[] => {
+    p.model.queue('lead', leadPolicy)
     const message = options.messages.findLast(message => message.role === 'tool')
     const call = (name: string, args: object) => {
       last = name
@@ -55,7 +56,7 @@ it('wakes settled members for power, sensor and new-task events and executes the
     }
     return call('lab_inbox', {})
   }
-  p.model.queue('lead', ...Array.from({ length: 50 }, () => leadPolicy))
+  p.model.queue('lead', leadPolicy)
   for (const chamber of ['A', 'B', 'C']) p.model.queue(`chamber-${chamber}`, textResponse('Ready for environmental work.'))
   const log = vi.spyOn(console, 'log').mockImplementation(() => {})
   let run: Awaited<ReturnType<typeof mountMultiAgent>>

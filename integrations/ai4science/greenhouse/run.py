@@ -13,8 +13,8 @@ def main():
     parser.add_argument('--no-proxy', action='store_true', help='Clear proxy variables only in the launched process')
     args = parser.parse_args()
     profile = args.home.resolve() / 'profiles' / args.profile
-    if not (profile / 'greenhouse-install.json').is_file():
-        parser.error('Expected a profile created by the greenhouse installer')
+    if not any((profile / name).is_file() for name in ['greenhouse-install.json', 'laboratory-install.json']):
+        parser.error('Expected a profile created by a science-harness environment installer')
     env = dict(os.environ)
     if args.credentials_file:
         for line in args.credentials_file.read_text().splitlines():

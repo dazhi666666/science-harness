@@ -12,6 +12,8 @@ def main():
     parser.add_argument('--home', type=pathlib.Path, required=True)
     parser.add_argument('--directory', type=pathlib.Path, required=True)
     parser.add_argument('--scenario', type=pathlib.Path)
+    parser.add_argument('--environment', choices=['greenhouse', 'laboratory'], default='greenhouse')
+    parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--mode', choices=['single-agent', 'multi-agent'], default='multi-agent')
     parser.add_argument('--clock-mode', choices=['event-driven', 'timer'], default='event-driven')
     parser.add_argument('--idle-review-ticks', type=int, default=30, help='Virtual review interval, not a runtime limit')
@@ -34,20 +36,31 @@ def main():
         parser.error('--direct-interface and --direct-address must be supplied together')
     if not 0 <= args.port <= 65535:
         parser.error('--port must be 0..65535')
+    if not 1 <= args.seed <= 9007199254740991:
+        parser.error('--seed must be a positive safe integer')
+    if args.environment == 'laboratory' and args.comparison_file:
+        parser.error('Laboratory paired reporting must use its domain evaluator; greenhouse comparison files are incompatible')
+    if args.environment == 'laboratory' and args.clock_mode != 'event-driven':
+        parser.error('Laboratory installation requires event-driven profiles')
     if args.idle_review_ticks < 1:
         parser.error('--idle-review-ticks must be positive')
     here = pathlib.Path(__file__).resolve().parent
     repo = here.parents[2]
     directory = args.directory.resolve()
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    scenario = (args.scenario or here / ('fixtures/baseline.scenario.json' if args.source == 'scripted' else 'scenario.json')).resolve(strict=True)
-    json.loads(scenario.read_text())
+    scenario = args.scenario or (here / ('fixtures/baseline.scenario.json' if args.source == 'scripted' else 'scenario.json') if args.environment == 'greenhouse' else None)
+    if scenario:
+        scenario = scenario.resolve(strict=True)
+        json.loads(scenario.read_text())
+    project = 'mars-greenhouse' if args.environment == 'greenhouse' else 'joint-laboratory'
     profile_name = ('greenhouse-single' if args.mode == 'single-agent' else 'greenhouse-multi') + ('-scripted' if args.source == 'scripted' else '')
+    if args.environment == 'laboratory':
+        profile_name = ('laboratory-single' if args.mode == 'single-agent' else 'laboratory-multi') + ('-scripted' if args.source == 'scripted' else '')
     profile = args.home.resolve() / 'profiles' / profile_name
-    marker = profile / 'greenhouse-install.json'
+    marker = profile / ('laboratory-install.json' if args.environment == 'laboratory' else 'greenhouse-install.json')
     if profile.exists() and not marker.is_file():
         raise SystemExit('Refusing to overwrite an unowned profile')
-    if (directory / 'router' / 'board.json').exists() or (directory / 'device' / 'greenhouse.sqlite').exists():
+    if (directory / 'router' / 'board.json').exists() or any((directory / 'device' / name).exists() for name in ['greenhouse.sqlite', 'laboratory.sqlite']):
         raise SystemExit('Agent run already has task history; choose a new directory, do not delete evidence')
     profile.mkdir(parents=True, exist_ok=True, mode=0o700)
     modules = {
@@ -61,7 +74,7 @@ def main():
     configs = {
         'jsonl': {'root': str(directory / 'sessions'), 'compression': 'none'},
         'query': {'path': ':memory:', 'openAt': 'never'}, 'loop': {'agents': []},
-        'subagents': {'scienceResultProject': 'mars-greenhouse', 'scienceResultMaxPending': 16, 'scienceResultMaxPairs': 3},
+        'subagents': {'scienceResultProject': project, 'scienceResultMaxPending': 16, 'scienceResultMaxPairs': 3},
         'fs-local': {'cwd': str(directory)}, 'working-directory': {'defaultDirectory': str(directory)},
         'spawn': {'providerName': 'spawn'}, 'storage-json': {'root': str(directory / 'records')},
         'storage-domain': {'backend': 'json'},
@@ -71,6 +84,9 @@ def main():
     if args.source == 'scripted':
         rows.append({'id': 'greenhouse-scripted', 'name': str(here / 'fixtures/model.ts')})
         model = {'provider': 'greenhouse-scripted', 'model': 'single-baseline' if args.mode == 'single-agent' else 'baseline'}
+        if args.environment == 'laboratory':
+            rows[-1] = {'id': 'laboratory-scripted', 'name': str(here / 'laboratory' / 'scripted-model.ts')}
+            model = {'provider': 'laboratory-scripted', 'model': 'single-workflow' if args.mode == 'single-agent' else 'team-workflow'}
     else:
         rows.append({'id': 'llm-retry', 'name': str(repo / 'packages/llm/llm-retry/src/index.ts')})
         rows.append({'id': 'llm-pi-ai', 'name': str(repo / 'packages/llm/llm-pi-ai/src/index.ts'), 'config': {'providers': {
@@ -106,18 +122,34 @@ def main():
         **({'directTransport': {'origin': f'{endpoint.scheme}://{endpoint.netloc}',
                                'interface': args.direct_interface, 'address': args.direct_address}} if args.direct_interface else {}),
     }})
+    if args.environment == 'laboratory':
+        agent_config = rows[-1]['config']
+        for field in ['clockMode', 'idleReviewTicks', 'comparisonFile', 'scenarioFile']:
+            agent_config.pop(field, None)
+        agent_config.update({'seed': args.seed, 'project': project})
+        if args.source == 'scripted':
+            agent_config['providerPool'] = ['laboratory-scripted']
+        if scenario:
+            agent_config['scenarioFile'] = str(scenario)
+        rows[-1]['id'] = 'laboratory-agents'
+        rows[-1]['name'] = str(here / 'laboratory' / 'agents.ts')
     (profile / 'package.json').write_text(json.dumps({'name': 'dsh-profile-' + profile_name, 'private': True,
         'type': 'module', 'dependencies': {}, 'dsh': {'profile': {'bundles': [], 'patchReload': 'startup'}}}, indent=2) + '\n')
     (profile / 'cordis.patch.yml').write_text(json.dumps([{'insert': rows}], indent=2) + '\n')
     sources = {path.name: path.read_bytes() for path in here.glob('*.ts')
                if not path.name.endswith('.spec.ts') and path.name != 'vitest.config.ts'}
+    if args.environment == 'laboratory':
+        sources.update({'laboratory/' + path.name: path.read_bytes() for path in (here / 'laboratory').glob('*.ts')
+                        if not path.name.endswith('.spec.ts')})
     snapshot = directory / 'source-snapshot'
     snapshot.mkdir(exist_ok=True, mode=0o700)
     for filename, content in sources.items():
-        (snapshot / filename).write_bytes(content)
+        destination = snapshot / filename
+        destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        destination.write_bytes(content)
     record = {'source': str(here), 'directory': str(directory), 'modelSource': args.source,
               'clockPolicy': {'mode': args.clock_mode, 'idleReviewTicks': args.idle_review_ticks},
-              'scenario': str(scenario), 'profile': profile_name,
+              'scenario': str(scenario) if scenario else None, 'seed': args.seed, 'environment': args.environment, 'profile': profile_name,
               'transportPolicy': rows[-1]['config'].get('directTransport'),
               'sourceHashes': {filename: hashlib.sha256(content).hexdigest() for filename, content in sources.items()},
               'modelPolicy': [row['config'] for row in rows if row['id'] in ['llm-pi-ai', 'compaction-basic']]}

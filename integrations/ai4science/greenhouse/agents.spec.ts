@@ -165,11 +165,16 @@ it.each((['mail', 'records', 'analysis-records', 'late', 'late-analysis-records'
   for (const chamber of ['A', 'B', 'C'] as const) {
     const step = worker(chamber, channel, () => observedBReference,
       id => { if (chamber === 'B') observedBReference ??= id }, () => { lateReferenceRead = true })
-    p.model.queue(`chamber-${chamber}`, ...Array.from({ length: 150 }, () => step))
+    const continuation = (options: GenerateOptions): StreamChunk[] => {
+      p.model.queue(`chamber-${chamber}`, continuation)
+      return step(options)
+    }
+    p.model.queue(`chamber-${chamber}`, continuation)
   }
   const lines: string[] = []
   const log = vi.spyOn(console, 'log').mockImplementation(value => lines.push(String(value)))
-  try { await p.ctx.plugin(Agents, { directory: join(p.root, 'run'), scenarioFile, project: 'cross-branch-project',
+  let mounted!: Awaited<ReturnType<typeof mountMultiAgent>>
+  try { mounted = await mountMultiAgent(p.ctx, { directory: join(p.root, 'run'), scenarioFile, project: 'cross-branch-project',
     port: 0, refreshMs: 100, providerCallTimeoutMs: 1000, source: 'scripted', clockMode, model: { provider: 'teams-probe', model: 'script' } }) }
   finally { log.mockRestore() }
   const launch = new URL(lines.find(line => line.startsWith('Mission Control: '))!.slice('Mission Control: '.length))
@@ -214,7 +219,20 @@ it.each((['mail', 'records', 'analysis-records', 'late', 'late-analysis-records'
   })
   const verify = () => spawnSync('python3', [fileURLToPath(new URL('./verify.py', import.meta.url)),
     join(p.root, 'run'), '--sessions', join(p.root, 'sessions')], { encoding: 'utf8' })
-  if (channel.startsWith('late')) await vi.waitFor(() => { expect(lateReferenceRead).toBe(true) })
+  if (channel.startsWith('late')) await vi.waitFor(() => { expect(lateReferenceRead).toBe(true) }, { timeout: 15000 })
+  await vi.waitFor(async () => {
+    await p.ctx.sessionPersistence.flush()
+    const report = JSON.parse(verify().stdout)
+    expect(report.checks.find((check: { name: string }) => check.name === 'completion_notices_reached_owner_model').passed).toBe(true)
+  }, { timeout: 15000 })
+  const root = p.ctx.agents.get(SessionId(lead.id))!
+  const conflict = await execute(p, 'lab_message', { to: 'outside-project', content: 'No external recipient allowed.' }, root)
+  expect(conflict.isError).toBe(true)
+  const forged = await execute(p, 'lab_complete', { task_id: 'T1', operation_id: latest!.experiment.tasks[0]!.result }, root)
+  expect(forged.isError).toBe(true)
+  await mounted.runtime.clock.close()
+  await mounted.dispatcher.flush()
+  await mounted.close()
   await p.ctx.sessionPersistence.flush()
   const verified = verify()
   expect(verified.status, verified.stdout + verified.stderr).toBe(channel.startsWith('late') ? 1 : 0)
@@ -248,11 +266,7 @@ it.each((['mail', 'records', 'analysis-records', 'late', 'late-analysis-records'
     expect(report.checks.find((check: { name: string }) => check.name === 'artifact_sizes_and_hashes').passed).toBe(false)
   } finally { writeFileSync(dataPath, bytes) }
 
-  const root = p.ctx.agents.get(SessionId(lead.id))!
-  const conflict = await execute(p, 'lab_message', { to: 'outside-project', content: 'No external recipient allowed.' }, root)
-  expect(conflict.isError).toBe(true)
-  const forged = await execute(p, 'lab_complete', { task_id: 'T1', operation_id: latest!.experiment.tasks[0]!.result }, root)
-  expect(forged.isError).toBe(true)
+
   const facts = p.trace.filter(event => event.stage === 'tool/result')
   expect(facts.length).toBeGreaterThan(0)
   p.report.greenhouse = { source: 'scripted', tasks: latest!.experiment.tasks, messages: latest!.experiment.messages }

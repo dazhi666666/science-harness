@@ -8,6 +8,7 @@ import { Board, type RouterMessage } from '../../agent-router/core/board.mjs'
 import type { Organization } from '../platform/organization.ts'
 import type { ExecutionEngine } from '../platform/execution.ts'
 import type { OperationContext } from '../platform/sdk.ts'
+import type { LaboratoryWorld } from './laboratory/world.ts'
 import type { GreenhouseWorld } from './world.ts'
 import { z } from 'zod'
 import type { WorldEvent } from './events.ts'
@@ -36,9 +37,10 @@ export class GreenhouseCollaboration {
    * @param admin Trusted project-fact writer, never exposed as a member capability.
    * @param file New Router Board snapshot path.
    * @param mode Explicit experiment organization; single mode permits only root self-assignment.
+   * @param domain Physical domain used for evidence names and laboratory delivery synchronization.
    */
   constructor(private readonly ctx: Context, private readonly org: Organization, private readonly engine: ExecutionEngine,
-    private readonly world: GreenhouseWorld, private readonly admin: OperationContext, file: string, private readonly mode: 'single-agent' | 'multi-agent' = 'multi-agent') {
+    private readonly world: GreenhouseWorld | LaboratoryWorld, private readonly admin: OperationContext, file: string, private readonly mode: 'single-agent' | 'multi-agent' = 'multi-agent', private readonly domain: 'greenhouse' | 'laboratory' = 'greenhouse') {
     if (existsSync(file)) throw new Error('Agent run board already exists; use a fresh run directory. History does not restore authority.')
     this.board = new Board(file)
   }
@@ -63,13 +65,13 @@ export class GreenhouseCollaboration {
     return member
   }
   private record(kind: string, data: unknown): void {
-    this.engine.recordFact(this.admin, `greenhouse-${kind}`, z.json().parse(JSON.parse(JSON.stringify(data))))
+    this.engine.recordFact(this.admin, `${this.domain}-${kind}`, z.json().parse(JSON.parse(JSON.stringify(data))))
   }
   private async deliver(from: { name: string; id?: SessionId }, to: Member, content: string, taskId: string | null, signal: AbortSignal): Promise<RouterMessage> {
     signal.throwIfAborted()
     if (this.disposed) throw new Error('Collaboration closed')
     const message = this.board.sendMessage({ from: from.name, to: to.name, content, task_id: taskId })
-    const envelope = { kind: 'greenhouse-mail', messageId: message.id, from: from.name, senderSessionId: from.id ?? null,
+    const envelope = { kind: `${this.domain}-mail`, messageId: message.id, from: from.name, senderSessionId: from.id ?? null,
       to: to.name, taskId, content }
     this.record('mail-written', envelope)
     try {
@@ -112,8 +114,11 @@ export class GreenhouseCollaboration {
     if (!target || (!self && target.parentId !== sender.id)) throw new Error('Assignments require an explicitly registered direct child or the single-mode root')
     const experiment = this.world.observe().tasks.find(task => task.id === taskId)
     if (!experiment) throw new Error('Experiment task is not available')
-    if (!self && target.name !== `chamber-${experiment.chamber}`) throw new Error('Task belongs to another chamber member')
-    const existing = this.board.tasks.find(task => task.assignee === assignee && task.spec === JSON.stringify(experiment))
+    if (!self && 'chamber' in experiment && target.name !== `chamber-${experiment.chamber}`) throw new Error('Task belongs to another chamber member')
+    this.synchronize()
+    const assigned = this.domain === 'laboratory' ? this.board.tasks.find(task => task.title === taskId) : undefined
+    if (assigned && assigned.assignee !== assignee) throw new Error('Phase already has an assignee; coordinate its existing Router task')
+    const existing = assigned ?? this.board.tasks.find(task => task.assignee === assignee && task.spec === JSON.stringify(experiment))
     if (existing) return { task: existing, duplicate: true }
     const task = this.board.createTask({ title: taskId, spec: JSON.stringify(experiment), assignee }, sender.name)
     this.record('task-assigned', task)
@@ -148,13 +153,23 @@ export class GreenhouseCollaboration {
    * @param signal Application owner cancellation.
    * @returns Accepted native-mailbox message; no environmental action is executed here.
    */
-  async notify(role: string, events: WorldEvent[], signal: AbortSignal) {
+  async notify(role: string, events: (WorldEvent | ReturnType<LaboratoryWorld['events']>[number])[], signal: AbortSignal) {
     const target = this.members.get(role)
     if (!target) throw new Error('Environmental notification recipient is not registered')
     const message = await this.deliver({ name: 'environment' }, target,
       JSON.stringify({ kind: 'environment-events', events }), null, signal)
     this.record('environment-notified', { role, messageId: message.id, eventSeqs: events.map(event => event.seq) })
     return message
+  }
+
+  /** Check unread application mail without marking it read or delivering it again.
+   * @param agent Exact current recipient.
+   * @returns Whether an accepted message remains unread in this recipient's Router mailbox.
+   */
+  hasUnread(agent: Agent): boolean {
+    const member = this.actor(agent, 'lab_inbox')
+    return this.board.inbox(member.name, { unreadOnly: true, markRead: false })
+      .some(message => this.deliveries.get(message.id)?.status === 'accepted')
   }
 
   /** Read the authenticated member's mailbox, marking only its own messages read.
@@ -182,7 +197,8 @@ export class GreenhouseCollaboration {
     const experiment = z.object({ id: z.string() }).passthrough().parse(JSON.parse(task.spec))
     const operation = await this.engine.query(context, operationId)
     const input = z.object({ action: z.literal('analyze'), taskId: z.string() }).passthrough().parse(operation.input)
-    if (operation.state !== 'succeeded' || input.taskId !== experiment.id || !this.world.observe().completedTasks.includes(experiment.id))
+    const state = this.world.observe()
+    if (operation.state !== 'succeeded' || input.taskId !== experiment.id || !('completedTasks' in state) || !state.completedTasks.includes(experiment.id))
       throw new Error('Assignment requires a successful analysis of its actual greenhouse task')
     if (task.status === 'done') return { task, duplicate: true }
     this.board.updateTask(task.id, { status: 'done', result: operation.id, artifacts: operation.artifacts.map(artifact => artifact.id) }, sender.name)
@@ -193,10 +209,51 @@ export class GreenhouseCollaboration {
     return { task, duplicate: false }
   }
 
+  private synchronize(): void {
+    if (this.domain !== 'laboratory') return
+    const state = this.world.observe()
+    if (!('deliveries' in state)) throw new Error('Laboratory collaboration requires its device world')
+    for (const assignment of this.board.tasks) {
+      const task = state.tasks.find(value => value.id === assignment.title)
+      if (!task) continue
+      const updated = JSON.stringify(task)
+      const delivery = state.deliveries.find(value => value.taskId === task.id && value.valid)
+      if (assignment.status === 'done' && (!delivery || assignment.result !== JSON.stringify(delivery))) {
+        this.board.updateTask(assignment.id, { status: 'in_progress', result: null, spec: updated }, 'environment')
+        this.record('task-reopened', { taskId: assignment.id, experimentTask: task.id })
+      } else if (assignment.status !== 'done' && assignment.spec !== updated)
+        this.board.updateTask(assignment.id, { spec: updated }, 'environment')
+    }
+  }
+
+  /** Close a laboratory assignment after a verified device delivery and notify its actual owner.
+   * @param agent Exact current assignee.
+   * @param taskId Router assignment ID.
+   * @param signal Application or tool cancellation signal.
+   * @returns Completed task and original measurement references.
+   */
+  async completeDelivery(agent: Agent, taskId: string, signal: AbortSignal) {
+    if (this.domain !== 'laboratory') throw new Error('Laboratory delivery requires its domain')
+    const sender = this.actor(agent, 'lab_complete')
+    this.synchronize()
+    const task = this.board.task(taskId), state = this.world.observe()
+    if (!task || task.assignee !== sender.name || !('deliveries' in state)) throw new Error('Only the laboratory assignee can complete its Router task')
+    const delivery = state.deliveries.find(value => value.taskId === task.title && value.valid)
+    if (!delivery) throw new Error('Assignment needs a currently valid laboratory delivery')
+    if (task.status === 'done') return { task, delivery, duplicate: true }
+    this.board.updateTask(task.id, { status: 'done', result: JSON.stringify(delivery), artifacts: [...delivery.resultIds] }, sender.name)
+    this.record('task-completed', { taskId, experimentTask: task.title, actorId: sender.id, resultIds: delivery.resultIds })
+    const creator = this.members.get(task.created_by)
+    if (!creator) throw new Error('Assignment owner unavailable; completion remains recorded')
+    if (creator.id !== sender.id) await this.deliver(sender, creator, JSON.stringify({ kind: 'laboratory-delivery', taskId, delivery }), task.id, signal)
+    return { task, delivery, duplicate: false }
+  }
+
   /** Read shared task state and public member status; exact caller validation is required at the tool entry.
    * @returns The Router Board and delivery receipts used by the frontend as well.
    */
   snapshot() {
+    this.synchronize()
     return { members: [...this.members.values()].map(member => ({ name: member.name, id: member.id,
       parentId: member.parentId ?? null, status: this.ctx.agents.get(member.id)?.status ?? 'inactive' })),
       tasks: this.board.tasks, messages: this.board.messages.map(message => ({ ...message,

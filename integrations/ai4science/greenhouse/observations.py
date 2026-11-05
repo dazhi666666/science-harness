@@ -36,7 +36,7 @@ def completion_calls(rows, task):
             and arguments(event) == {'task_id': task['id'], 'operation_id': task['result']}]
 
 
-def incoming(rows, message):
+def incoming(rows, message, kind='greenhouse-mail'):
     for event in rows:
         if event['type'] != 'user/message':
             continue
@@ -47,7 +47,7 @@ def incoming(rows, message):
                 envelope = json.loads(block['text'])
             except json.JSONDecodeError:
                 continue
-            if isinstance(envelope, dict) and envelope.get('kind') == 'greenhouse-mail' and all(
+            if isinstance(envelope, dict) and envelope.get('kind') == kind and all(
                     envelope.get(key) == message[value] for key, value in [
                         ('messageId', 'id'), ('from', 'from'), ('to', 'to'), ('taskId', 'task_id'), ('content', 'content')]):
                 return event

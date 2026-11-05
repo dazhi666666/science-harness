@@ -1,6 +1,7 @@
 /* Mission Control 前端：一个页面融合 AI4Science 科学执行（/science）与 Agent Router 多智能体编排（/router）。 */
 import { countUp, sparkline, Constellation, reduced } from '/fx.js'
 import { t, lang, locale, setLang, applyStatic } from '/i18n.js'
+import { createLaboratoryView } from '/laboratory.js'
 import { createGreenhouseView } from '/greenhouse.js'
 
 const $ = (s, root = document) => root.querySelector(s)
@@ -160,10 +161,10 @@ $('#lock-form').onsubmit = async (e) => {
   else toast(t('令牌无效'), true)
 }
 function paintLinks() {
-  $$('[data-link]').forEach((el) => { el.className = 'link-dot ' + (state.link[el.dataset.link] ? 'on' : 'off') })
+  $$('[data-link]').forEach((el) => { el.className = 'link-dot ' + (state.link[el.dataset.link] || el.dataset.link === 'router' && state.laboratoryTeam ? 'on' : 'off') })
   const both = state.link.science && state.link.router
   $('.rail-foot .pulse').className = 'pulse ' + (both ? 'ok' : state.link.science || state.link.router ? '' : 'bad')
-  $('#uplink-text').textContent = t(state.greenhouseTeam && !state.link.router ? '温室团队已挂载' : both ? '双链路在线' : state.link.router ? '编排在线 · 科学离线' : state.link.science ? '科学在线 · 编排离线' : '链路离线')
+  $('#uplink-text').textContent = t(state.laboratoryTeam && !state.link.router ? '实验室团队已挂载' : state.greenhouseTeam && !state.link.router ? '温室团队已挂载' : both ? '双链路在线' : state.link.router ? '编排在线 · 科学离线' : state.link.science ? '科学在线 · 编排离线' : '链路离线')
 }
 
 /* ---------- 提示 ---------- */
@@ -208,6 +209,13 @@ function paintBusy() {
 
 /* ---------- 路由 / 视图切换 ---------- */
 const views = {}
+views.laboratory = createLaboratoryView({ api, t, esc, num, available: () => !!state.link.laboratory,
+  onSnapshot: snapshot => {
+    state.laboratoryTeam = !!snapshot.experiment
+    state.laboratoryReport = snapshot.mode === 'saved-report'
+    if (state.view === 'laboratory') $('#primary-action').disabled = state.laboratoryReport
+    paintLinks()
+  } })
 views.greenhouse = createGreenhouseView({ api, t, esc, num, available: () => !!state.link.greenhouse,
   onSnapshot: snapshot => {
     state.greenhouseTeam = !!snapshot.experiment; state.greenhouseExperiment = snapshot.experiment; paintLinks()
@@ -216,8 +224,11 @@ views.greenhouse = createGreenhouseView({ api, t, esc, num, available: () => !!s
     if (state.view === 'agents' && snapshot.experiment && !state.link.router && !$('#greenhouse-live')) views.agents.mount($('#stage'))
   },
   openOperation: id => { go('science'); openOp(id) } })
-const SCIENCE_VIEWS = ['science', 'providers', 'artifacts', 'greenhouse']
+const SCIENCE_VIEWS = ['science', 'providers', 'artifacts', 'greenhouse', 'laboratory']
 function go(view, { quiet = false } = {}) {
+  if (state.laboratoryTeam && !state.link.router && ['agents', 'fleet'].includes(view)) {
+    views.laboratory.selectPanel('team'); view = 'laboratory'
+  }
   if (!views[view]) view = 'overview'
   const leaving = state.view
   state.view = view
@@ -226,6 +237,7 @@ function go(view, { quiet = false } = {}) {
   moveIndicator()
   $('#crumb-a').textContent = t(views[view].section)
   $('#crumb-b').textContent = t(views[view].title)
+  $('#primary-action').disabled = view === 'laboratory' && !!state.laboratoryReport
   $('#primary-action span:last-child').textContent = t(state.greenhouseTeam && !state.link.router && ['agents', 'fleet'].includes(view) ? '查看温室' : SCIENCE_VIEWS.includes(view) ? '新建实验' : '新建编排')
   const stage = $('#stage')
   stage.innerHTML = ''
@@ -252,7 +264,7 @@ $('#menu').onclick = () => $('.rail').classList.toggle('open')
 $('#refresh').onclick = async () => {
   const b = $('#refresh')
   b.classList.remove('spinning'); void b.offsetWidth; b.classList.add('spinning')
-  await Promise.all([loadScience(true), loadRuns(true), loadHealth(), views.greenhouse.load()])
+  await Promise.all([loadScience(true), loadRuns(true), loadHealth(), views.greenhouse.load(), views.laboratory.load()])
   if (state.view === 'agents' && state.openId) openRun(state.openId)
 }
 $('#primary-action').onclick = () => (state.greenhouseTeam && !state.link.router && ['agents', 'fleet'].includes(state.view) ? go('greenhouse') : SCIENCE_VIEWS.includes(state.view) ? openScienceRun() : openAgentRun())
@@ -1040,7 +1052,7 @@ views.fleet = {
  * 命令面板 + 快捷键
  * ===================================================================== */
 let palItems = [], palIndex = 0
-const VIEW_ICONS = { overview: 'radar', science: 'flask', providers: 'layers', artifacts: 'file', agents: 'nodes', fleet: 'cpu' }
+const VIEW_ICONS = { laboratory: 'layers', greenhouse: 'flask', overview: 'radar', science: 'flask', providers: 'layers', artifacts: 'file', agents: 'nodes', fleet: 'cpu' }
 function commands() {
   const list = [
     ...Object.entries(views).map(([id, v]) => ({ label: t('前往 · {v}', { v: t(v.title) }), hint: t(v.section), icon: VIEW_ICONS[id], run: () => go(id) })),
@@ -1100,12 +1112,13 @@ let timers = []
 function boot() {
   timers.forEach(clearInterval)
   renderProjects()
-  let initial = state.link.greenhouse ? 'greenhouse' : 'overview'
+  let initial = state.link.laboratory ? 'laboratory' : state.link.greenhouse ? 'greenhouse' : 'overview'
   try { initial = sessionStorage.getItem('mission-control-view') || initial } catch {}
   go(initial)
-  loadScience(true); loadRuns(true); loadHealth(); views.greenhouse.load()
+  loadScience(true); loadRuns(true); loadHealth(); views.greenhouse.load(); views.laboratory.load()
   timers = [
     setInterval(() => { if (!document.hidden) loadScience() }, 2000),
+    setInterval(() => { if (!document.hidden && state.view === 'laboratory') views.laboratory.load() }, 1000),
     setInterval(() => { if (!document.hidden && ['greenhouse', 'overview', 'fleet', 'agents'].includes(state.view)) views.greenhouse.load() }, 1000),
     setInterval(() => { if (!document.hidden) loadRuns() }, 4000),
     setInterval(() => { if (!document.hidden) loadHealth() }, 15000),

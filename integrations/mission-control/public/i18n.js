@@ -596,3 +596,53 @@ Object.assign(EN, {
   '共享读取包括检测产物和列出检测 ID 的已验证分析产物。': 'Shared reads include verified assay outputs and analysis outputs listing their assay IDs.',
   '续接核验统计压缩前已收到且未交付的本人任务；次数不代表信息损失。': 'Continuity counts own assignments received but unfinished before compaction; counts do not establish information loss.',
 })
+
+Object.assign(EN, {
+  '联合实验室': 'Joint laboratory', '实验室总览': 'Laboratory overview', '设备状态': 'Device status',
+  '样品流转': 'Sample lineage', '项目依赖': 'Project dependencies', '异常与操作': 'Exceptions and operations',
+  '协作记录': 'Collaboration', '设备、样品、项目依赖与异常处置': 'Devices, samples, project dependencies and exception handling',
+  '当前运行未挂载联合实验室': 'This run has no joint laboratory', '正在读取实验室状态…': 'Loading laboratory state…',
+  '实验室环境联调 · Agent 尚未启动': 'Laboratory environment integration · Agents have not started',
+  '联合实验室运行中': 'Joint laboratory running', '环境已挂载，Agent 尚未启动。': 'The environment is mounted. Agents have not started.',
+  '实验室视图': 'Laboratory views', '逻辑模拟步': 'Logical tick', '已发布任务': 'Released tasks', '有效交付': 'Valid deliveries',
+  '运行中操作': 'Running operations', '公共设施': 'Shared facilities', '当前值': 'Current value',
+  '水箱余量（微升）': 'Water remaining (µL)', '水路状态': 'Water path', '需要处理': 'Needs attention',
+  '累计超温（样品×模拟步）': 'Cumulative unsafe exposure (sample-ticks)', '耗材与物流': 'Consumables and shipments',
+  '种类': 'Kind', '数量': 'Quantity', '到货模拟步': 'Arrival tick', '液体处理': 'Liquid handler', '离心机': 'Centrifuge',
+  '加热模块': 'Heating module', '快速筛查仪': 'Screening instrument', '确认检测仪': 'Confirmation instrument',
+  '转运机器人': 'Transport robot', '冷藏设备': 'Refrigerator', '冷冻设备': 'Freezer', '培养舱': 'Incubator',
+  '成像设备': 'Imager', '水路模块': 'Water module', '分析工作站': 'Analysis workstation', '已停用': 'Disabled',
+  '需要清洗': 'Cleaning required', '清洁': 'Clean', '实测温度': 'Measured temperature', '目标温度': 'Target temperature',
+  '位置占用': 'Positions occupied', '支持方法': 'Supported methods', '校准有效至模拟步': 'Calibration valid through tick',
+  '下一事件模拟步': 'Next event tick', '剩余体积（微升）': 'Remaining volume (µL)', '当前位置': 'Current location',
+  '处理状态': 'Processing state', '保存状态': 'Preservation state', '父样品': 'Parent sample',
+  '累计超温模拟步': 'Cumulative unsafe ticks', '到期模拟步': 'Expiry tick', '接触批次': 'Exposed batches',
+  '阶段任务': 'Phase task', '所需方法': 'Required method', '前置交付': 'Prerequisite deliveries',
+  '已提交事件': 'Committed events', '序号': 'Sequence', '实际设备操作': 'Actual device operations',
+  '已消耗': 'Consumed', '用水微升': 'water µL', '已隔离': 'Quarantined', '已召回': 'Recalled',
+})
+
+Object.assign(EN, { '兼容容器': 'Compatible containers', '每批样品上限': 'Maximum samples per batch', '配平数量倍数': 'Balanced count multiple' })
+
+Object.assign(EN, {
+  '协调员': 'Coordinator', '设施与设备成员': 'Facilities and equipment', '样品与实验成员': 'Samples and experiments',
+  '数据与质量成员': 'Data and quality', '待分派': 'Pending assignment', '未激活': 'Inactive',
+  '原生投递已接受': 'Native delivery accepted', '等待原生投递': 'Awaiting native delivery', '原生投递失败': 'Native delivery failed',
+  '原生成员': 'Native members', '原生会话': 'Native Session', '父会话': 'Parent Session',
+  '模型与压缩记录': 'Model and compression records', '原生上下文摘要': 'Native context summaries', '摘要失败': 'Summary failures',
+  '工具错误': 'Tool errors', '模型路由': 'Model route', 'Router 分派与交付': 'Router assignments and deliveries',
+  '分派': 'Assignment', '负责人': 'Assignee', '交付引用': 'Delivery references', '成员消息与回执': 'Member messages and receipts',
+  '关联分派': 'Related assignment', '投递回执': 'Delivery receipt', '信箱读取': 'Mailbox read', '已读取': 'Read', '待读取': 'Unread',
+})
+
+Object.assign(EN, { '实验室团队已挂载': 'Laboratory team mounted' })
+
+Object.assign(EN, { '联合实验室对照报告': 'Joint laboratory comparison', '检测记录': 'Measurement records', '供电过载模拟步': 'Power overload ticks', '水路不可用模拟步': 'Water unavailable ticks' })
+
+Object.assign(EN, { '跨项目参考': 'Cross-project references' })
+
+Object.assign(EN, { '同来源同方法版本额外检测': 'Additional measurements of the same root and method version' })
+
+Object.assign(EN, { '已发布任务完成率': 'Released-task completion rate', '任务完成率': 'Task completion rate', '操作者辅助操作': 'Operator-assisted operations', '操作者辅助': 'Operator assistance', '执行者': 'Executed by', '执行者信息待核验': 'Actor information pending verification' })
+
+Object.assign(EN, { '人工介入次数': 'Human intervention count' })

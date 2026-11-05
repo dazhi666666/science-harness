@@ -610,3 +610,15 @@ body.busy .top::after { opacity: 1; animation: beam 2.8s linear infinite; }
 .greenhouse-run-metrics { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .greenhouse-mailbox { max-height: 420px; overflow: auto; }
 .greenhouse-mailbox p { overflow-wrap: anywhere; }
+
+/* Joint laboratory uses the existing cards, tables and responsive stage. */
+.lab-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.lab-device-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.lab-table { width: 100%; overflow-x: auto; }
+.lab-id { overflow-wrap: anywhere; font-family: monospace; font-size: .85em; }
+#laboratory-live .card { margin-bottom: 16px; }
+#laboratory-live td { vertical-align: top; }
+#laboratory-live pre { max-width: 70vw; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+#laboratory-live summary { cursor: pointer; }
+#laboratory-live .lab-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { #laboratory-live .lab-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

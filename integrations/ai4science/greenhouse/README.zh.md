@@ -114,4 +114,6 @@ python3 integrations/ai4science/greenhouse/verify.py .ai4science/greenhouse-sing
 
 模式标识或成功的连通性检查，不能证明单／多 Agent 的实际效果、自然达到 256K 后的压缩或持续值守。使用[实验规程](experiments/README.zh.md)生成更长任务并比较独立核验的记录。安装器为每个全新运行保存源文件内容、哈希及实际模型／压缩设置。 安装后源码发生变化会在创建设备状态之前拒绝启动；重新安装尚未使用的 profile，记录新的输入。`--comparison-file` 在温室页面展示保存的评测配对，但不提供给 Agent；文件缺失表示等待报告，格式错误会让快照请求显式失败。两种模式都不增加总 token、请求次数或运行时长上限。 保存的对照还通过 [observations.py](observations.py)，从现有记录推导资源占用、重复成功效果及压缩后已核验的任务交付。观测使用虚拟模拟步与原生 Session 事件顺序；工具调用重复与设备效果重复分别统计。
 
-`run.py` 只启动已安装的温室 `dsh` profile。提供 `--home`、`--profile`，并可通过 `--credentials-file` 指定使用普通 `NAME=value` 行的文件；值只复制到子进程环境，不做 shell 求值，也不打印。`--no-proxy` 只清理该进程的代理环境变量；profile 中的物理网卡直连配置负责绕过 TUN 代理。启动器不设置项目截止时间。
+`run.py` 启动已安装的温室或实验室 `dsh` profile。提供 `--home`、`--profile`，并可通过 `--credentials-file` 指定使用普通 `NAME=value` 行的文件；值只复制到子进程环境，不做 shell 求值，也不打印。`--no-proxy` 只清理该进程的代理环境变量；profile 中的物理网卡直连配置负责绕过 TUN 代理。启动器不设置项目截止时间。
+
+[分阶段实验室库](laboratory/README.zh.md)通过现有 Provider 协议实现样品体积与谱系、物理转运、前处理方法、设备故障及校准撤销。其设备链路场景与温室 Agent profile 分开使用。
